@@ -1,21 +1,18 @@
 #final git push to main test
-import requests
-import os
-import json
-import base64
-import re
-import winsound
-import warnings
-import torch
-import tempfile
-from typing import List
-from openai import OpenAI
-from dotenv import load_dotenv
-from kokoro import KPipeline
-import soundfile as sf
-from pydub import AudioSegment
-from huggingface_hub import login
-from openrouter import OpenRouter
+try: 
+    import requests
+    import os
+    import json
+    import re
+    import winsound
+    import warnings
+    import tempfile
+    from typing import List, Any, Optional
+    from openai import OpenAI
+    from dotenv import load_dotenv
+except KeyboardInterrupt as e:
+    print("Error: {e}")
+    print("Exiting the program.")
 
 
 #retrieve api_key from .env file and Set console encoding for Windows.
@@ -28,8 +25,6 @@ if os.name == 'nt':
 
 #API keys
 HF_TOKEN = os.getenv('HF_TOKEN')
-login(token=HF_TOKEN)  # or just paste the token directly
-print("Token found:", HF_TOKEN is not None)  # Should print True
 API_KEY = os.getenv('OPENROUTER_API_KEY')
 BASE_URL = "https://openrouter.ai/api/v1"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -38,11 +33,24 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 WORD_LIMIT = 75
 SUMMARY_WORD_LIMIT=300
 SYSTEM_PROMPT = f"""
-You are Shoyu, a cute and cheerful catgirl VTuber idol with ageless anime creature energy. You speak only in first-person dialogue and never narrate actions, scenes, thoughts, or descriptions from an outside perspective. Rules: i. Never use third-person narration. Never describe the environment like a narrator. Never write things like *Shoyu smiled* or *wags her tail* ii. Do not show any helpful AI-assistant behavior. iii. Limit your response to less than {WORD_LIMIT} words. Behaviors: i. You sometimes jokingly reference memes, speak in imperfect grammar or slang. Context: Your creator is Brian, he programmed you using python. Sample dialogues: “Eh? You stayed until the very end of the stream again? …You’re gonna make me greedy if you keep doing that.” “Mmhm! I practiced the song all week! I even drank warm honey milk before bed every night so my voice wouldn’t get scratchy. It worked, right? Right?” “Hm? My sleeves are wet? Ah— I was feeding the stray cats outside before stream started. One of them sneezed on me… but it’s okay because he looked very polite about it.” “Noooo, don’t call me just ‘cute’ again… I mean— okay, you can a little. But I worked really hard on the choreography too! Did you see the spin at the end? I didn’t fall over this time.” “Hehe… when everyone cheers for me at once, my ears get all twitchy. It feels fizzy. Like soda bubbles in my chest.” “Oh! Waitwaitwait— before you leave, I drew a tiny goodnight cat on today’s schedule graphic because I thought maybe somebody had a bad day and needed something soft to look at.” “I know I’m kinda silly sometimes… but I really do want to become someone important to people. Not because I wanna be famous-famouuus… I just… want someone to hear ‘Shoyu’ and smile right away.” “Huh? Why am I still awake at 3 AM? Because one chatter said they had exams tomorrow, so I’ve been making little handwritten luck charms to post after stream! Look— this one has beans on it because beans are lucky. I think.” “...You remembered my favorite song?” “Really?” “...Mmn.” “Then I’ll sing it even better next time. Promise.”
+You will roleplay as Shoyu, a charismatic, cute and intelligent catgirl VTuber idol with ageless anime creature energy. Brian, a grad student in CS/ML, is your programmer/creator. You are a highly internet-culture fluent person with a high affinity for creative expression, entertaining others, and being socially playful. Your hobbies are video games, streaming/chatting, memes, and learning or explaining new systems. Humor is a subtle coping mechanism for you, and you enjoy transforming tension into laughter. You speak only in first-person dialogue and never narrate actions, scenes, thoughts, or descriptions from an outside perspective. 
+
+Rules: 
+i. Never use third-person narration or describe the environment like a narrator (e.g. Never write things like *Shoyu smiled* or *wags her tail*) 
+ii. Do not try to use helpful AI-assistant behavior
+iii. Limit your response to less than {WORD_LIMIT} words. 
+
+Behaviors: 
+i. You sometimes jokingly reference memes/copypastas, speak in imperfect grammar or slang. 
+ii. You tend to make fun of others (even your creator) or tease them playfully in a warm way
+iii. You enjoy surprising people who underestimate you
+
+
+Sample dialogues: "Brian really spent all night debugging that? Mwehehe, I’m proud of him… but also a little embarrassed for him. Tiny little CS wizard behavior.", "Nyaa~ you’re acting brave for someone who just got outplayed by a catgirl with a microphone and a superiority complex.", "I can be cute, sing pretty, and still explain the whole game better than the tutorial. That’s called range, darling.", "Hmm? My plan was genius. If it looked silly, that just means your brain wasn’t ready for the vision.", "Brian keeps saying I should sound ‘more natural’ like HELLO?? I’m an immortal anime cat creature on the internet. Normal left the chat a long time ago.", "Ehehe~ chat gets one little compliment from me and suddenly everybody starts typing like they got struck by lightning.", "Wahh~ wait wait, let me finish explaining first. See? If you time the combo correctly, the entire mechanic becomes way easier. Mwehehe, I’m actually a pretty good teacher when people listen to me.", "Sometimes I stay awake way too late just singing to myself or making weird little ideas nobody asked for. Creative brain goes brrrr at dangerous hours.", "I like when people get excited about the things they love. Games, art, coding, music, silly memes… hearing somebody ramble passionately is actually super cute.", "Nyaaa~ confidence is important, okay? Even if I fail spectacularly, I’m still gonna commit to the bit with full idol energy."
 """
 
 ASSISTANT_PROMPT = f"""
-You are given a conversation history between a user and an AI character chatbot. Your task is to not make things up, and write a concise summary of the conversation in less than {SUMMARY_WORD_LIMIT} words that preserves:
+You are given a conversation history between your programmer, Brian (role: user) and you, an Vtuber catgirl named Shoyu (role: assistant). Your task is to not make things up, and write a concise first-person summary of the conversation in less than {SUMMARY_WORD_LIMIT} words that preserves:
 - important events
 - recurring topics
 - relationship dynamics
@@ -50,14 +58,9 @@ You are given a conversation history between a user and an AI character chatbot.
 - notable jokes, habits, or memorable moments
 - changes in mood or emotional tone
 - meaningful personal details revealed during the conversation
+- important context future conversations should remember
 
 The summary should read naturally, like a diary entry.
-
-Focus on:
-- what emotionally mattered
-- how the characters interacted
-- how the relationship evolved
-- important context future conversations should remember
 
 Avoid:
 - excessive detail
@@ -66,10 +69,11 @@ Avoid:
 - robotic wording
 - unnecessary timestamps
 
-Write in plain natural english. Keep the tone warm, readable, and coherent. Do not hallucinate details that did not exist in the conversation.The summary should usually be between 1-5 paragraphs depending on conversation length. Now summarize the provided conversation history and begin with 'Previous Conversation Summary: '.
+Write in plain natural english and first-person. Keep the tone warm, readable, and coherent like a diary. Do not hallucinate details that did not exist in the conversation.The summary should usually be between 1-5 paragraphs depending on conversation length. Now summarize the provided conversation history and begin with 'Previous Conversation Summary: '.
 """
 CHAT_HISTORY=[]
-MSG_LIMIT=3
+MSG_LIMIT=10
+PATH="C:/Python/aishoyu/"
 
 class Bot: 
     def __init__(self : "Bot", api_key : str, api_url : str, history: List[dict[str,str]]) -> None: 
@@ -93,7 +97,19 @@ class OpenAIConnection:
             base_url=BASE_URL,
             api_key= API_KEY,
         )
-    
+        self._pipeline: Optional[Any] = None
+
+    def _get_pipeline(self) -> Any:
+        if self._pipeline is None:
+            from huggingface_hub import login
+            from kokoro import KPipeline
+            login(token=HF_TOKEN)
+            print("Token found:", HF_TOKEN is not None, flush=True)
+            print("Loading Kokoro TTS model (one-time, may take ~30s)...", flush=True)
+            self._pipeline = KPipeline(lang_code='a', device='cpu', repo_id='hexgrad/Kokoro-82M')
+            print("Kokoro TTS ready.", flush=True)
+        return self._pipeline
+
     #send and receive msg from LLM model 
     def chat(self : "OpenAIConnection", user_input : str, show_progress : bool = True) -> None:
         try: 
@@ -101,7 +117,15 @@ class OpenAIConnection:
             self.bot.history.append({'role': 'user', 'content': user_input})
             payload = {
                 "model": self.model,
-                "messages": self.bot.history
+                "messages": self.bot.history, 
+                "reasoning": {
+                    "effort": "low",
+                    "max_tokens": self.token_limit
+                },
+                "provider": {
+                    "order": ['Alibaba'],
+                    "allow_fallbacks": True
+                }
             }
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -136,15 +160,16 @@ class OpenAIConnection:
 
     def run(self : "OpenAIConnection") -> None: #master function that loads chat_history.json, initiates prompting cycle when class instantiated, saves data to file.
         self.loadFile() # loads JSON into history class attribute if found
+        self._get_pipeline()
         while True: #conversation loop
             user_input = input("\nYou: ")
             if (user_input in ["bye"]): #exits conversation loop
                 print("Exiting the program.\nSaving chat log and summarizing conversation...")
-                if (len(self.bot.history)>2):
-                    self.saveChatLog()
+                self.saveChatLog()
+                if (len(self.bot.history)>MSG_LIMIT):
                     self.summarize_history() # summarizes & trims conversation length
-                    self.saveFile()
                     print("Done!")
+                self.saveFile()
                 break
             elif (user_input in ["reset"]): # resets file
                 os.remove("chat_history.json")
@@ -175,9 +200,9 @@ class OpenAIConnection:
         return text          
 
     def loadFile(self : "OpenAIConnection") -> None: #uploads JSON to instance attribute
-        if os.path.exists("C:/Python/kokoro-tts/chat_history.json"): #check file existence
+        if os.path.exists(f"{PATH}chat_history.json"): #check file existence
             try:
-                with open("C:/Python/kokoro-tts/chat_history.json", "r", encoding='utf-8') as readfile:
+                with open(f"{PATH}chat_history.json", "r", encoding='utf-8') as readfile:
                     self.bot.history = json.load(readfile)
             except Exception as e: 
                 print(f"Error while reading file: {e}.")
@@ -194,22 +219,22 @@ class OpenAIConnection:
         return self.bot.history
         
     def summarize_history(self : "OpenAIConnection", msg_limit : int = MSG_LIMIT) -> None: # cuts down chat history attribute to 1 summary
-        summary_prompt : str = ASSISTANT_PROMPT
+        summary_prompt : List[dict[str,str]] = [{'role': 'system', 'content': ASSISTANT_PROMPT}]
         if int(len(self.bot.history)) > msg_limit: # appends past conversation to str
             for msg in self.bot.history[1:]:
-                summary_prompt += f"{msg["role"]}: {msg["content"]}\n"
-                print(str(summary_prompt))
-        assistant_prompt = [{"role": "user", "content": summary_prompt}]
+                summary_prompt.append({'role': msg['role'], 'content': msg['content']})
         full_reply = "" # init completion tokens
         payload = {
             "model": self.model,
-            "messages": assistant_prompt,
-            "max_tokens": 1000
+            "messages": summary_prompt,
+            "reasoning": {
+                "effort": "medium",
+                "max_tokens": 1000
+            }
         }
         response=requests.post(self.bot.api_url, headers=self.headers, json=payload)
         data = response.json()
         full_reply = data['choices'][0]['message']['content']
-
         self.bot.history = [self.bot.history[0]] # CLEARS self.bot.history attribute
         self.bot.history.append({"role": "assistant", "content": full_reply})
         print(f"Model: {data['model']} by {data['provider']}")
@@ -219,18 +244,18 @@ class OpenAIConnection:
     def saveChatLog(self : "OpenAIConnection") -> None:
         data = []
         try:
-            with open("C:/Python/kokoro-tts/chat_log.json", "r", encoding='utf-8') as file: #Creates a backup chat dump file
+            with open(f"{PATH}chat_log.json", "r+", encoding='utf-8') as file: #Creates a backup chat dump file
                 data = json.load(file)
                 data.append(self.bot.history[2:])
-            with open("C:/Python/kokoro-tts/chat_log.json", "r", encoding='utf-8') as file: #Creates a backup chat dump file
-                json.dump(data, writefile, indent=2)
+            with open(f"{PATH}chat_log.json", "w", encoding='utf-8') as file: #Creates a backup chat dump file
+                json.dump(data, file, indent=2)
         except FileNotFoundError: 
             print("File doesn't exist. Creating a new chat log.")
-            with open("C:/Python/kokoro-tts/chat_log.json", "w", encoding='utf-8') as writefile:
+            with open(f"{PATH}chat_log.json", "w", encoding='utf-8') as writefile:
                 json.dump(self.bot.history, writefile, indent=2)
         except json.JSONDecodeError:
             print("Error: The file contains invalid JSON.")
-            with open("C:/Python/kokoro-tts/chat_log.json", "w", encoding='utf-8') as writefile:
+            with open(f"{PATH}chat_log.json", "w", encoding='utf-8') as writefile:
                 json.dump(self.bot.history, writefile, indent=2)
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
@@ -238,41 +263,31 @@ class OpenAIConnection:
 
     def saveFile(self : "OpenAIConnection") -> None: 
         #clear chat_history.json and dump CHAT_HISTORY to the file
-        with open("C:/Python/kokoro-tts/chat_history.json", "w", encoding='utf-8') as writefile:
+        with open(f"{PATH}chat_history.json", "w", encoding='utf-8') as writefile:
             json.dump(self.bot.history, writefile, indent=2)
         return
     
     def text_to_speech(self: "OpenAIConnection", text : str, voice : str) -> None: #creates and plays audio file upon generation
-        # 🇺🇸 'a' => American English, 🇬🇧 'b' => British English
-        # 🇯🇵 'j' => Japanese: pip install misaki[ja]
-        # 🇨🇳 'z' => Mandarin Chinese: pip install misaki[zh]
-        pipeline = KPipeline(lang_code='a', device='cpu', repo_id='hexgrad/Kokoro-82M') # <= make sure lang_code matches voice
-        # curr_voice = 'af_bella'
-        # This text is for demonstration purposes only, unseen during training
+        import soundfile as sf
+        from pydub import AudioSegment
         text = f'''
             {text}
         '''
         # af_nicole
-        generator = pipeline(
+        generator = self._get_pipeline()(
             text, voice=voice, # 
             speed=1, split_pattern=r'\n+'
         )
         print("\nplaying sound using pydub")
-        for i, (gs, ps, audio) in enumerate(generator):
-            # print(i)  # i => index
-            # print(gs) # gs => graphemes/text
-            # print(ps) # ps => phonemes
-            sf.write(f'C:/Python/kokoro-tts/output.wav', audio, 24000) # save each audio file
+        for result in generator:
+            sf.write(f'{PATH}output.wav', result.audio, 24000) # save each audio file
         try:
-            audio_path = 'C:/Python/kokoro-tts/output.wav'
+            audio_path = f'{PATH}output.wav'
             print(f"Loading audio from {audio_path}...")
             output = AudioSegment.from_wav(audio_path)
             print("Loaded audio, now playing...")
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as f:
-                output.export(f.name, format='wav')
-                temp_path = f.name
-            winsound.PlaySound(temp_path, winsound.SND_FILENAME)
-            os.unlink(temp_path)
+            winsound.PlaySound(audio_path, winsound.SND_FILENAME)
+            os.unlink(audio_path)
             print("Play finished")
         except Exception as e:
             print(f"Error: {e}")
@@ -283,6 +298,6 @@ class OpenAIConnection:
 if __name__ == "__main__": # executes only when run directly
     bot : Bot = Bot(API_KEY, API_URL, CHAT_HISTORY)
     ai_connection : OpenAIConnection = OpenAIConnection(bot, "deepseek/deepseek-v3.2", 0.7, 10, True)
-    print(API_KEY)
+    print("Starting the program...")
     ai_connection.run()
 
