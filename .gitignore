@@ -1,6 +1,4 @@
 .env 
-chat_history.json
-chat_log.json
-input.txt
-output.wav
-test.py
+db/
+.vscode/
+__pycache__/

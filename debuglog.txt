@@ -1,0 +1,12 @@
+[Date] [Time] - Error Type
+[Details]
+[Cause]
+[What I did]
+[Solution]
+
+5/23/2026 6:24am - EOF when reading a line
+[Detail] I loaded history.db into a history var, and user_input = input("You: ") produced an error.
+[Cause] launch.json "console": "internalConsole" meant for output & expressions, not input
+[What I did] Added try-except blocks + Escalated to CursorAI
+[Solution] Changed launch.json to "console": "integratedTerminal"
+
