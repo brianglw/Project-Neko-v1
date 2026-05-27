@@ -8,6 +8,9 @@ try: #imports
     import winsound
     import warnings
     import sqlite3
+    import pyaudio
+    import wave
+    from faster_whisper import WhisperModel
     from typing import List, Any, Optional
     from ollama import Client
     from dotenv import load_dotenv
@@ -31,7 +34,7 @@ PORT = os.getenv('PORT')
 #LIMIT VARS
 WORD_LIMIT = 120
 SUMMARY_WORD_LIMIT=500
-MSG_LIMIT=5
+MSG_LIMIT=14
 
 #GLOBAL VARS
 CHAT_HISTORY=[]
@@ -127,10 +130,81 @@ class OpenAIConnection:
         except Exception as e:
             print(f"Error during chat: {e}")
 
-    # <-- DELETE WHEN DONE -->
-    # def appendSystemPrompt(self : "OpenAIConnection") -> None: # appends sys_prompt when chat_history.json reset, not exists, not loaded properly
-    #     self.bot.history.append({'role': 'system', 'content': SYSTEM_PROMPT})
-    #     return
+    def generate_audio(self : "OpenAIConnection") -> None: #uses pyaudio
+        # the file name output you want to record into
+        try:
+            filename = f"{PATH}user_input.wav"
+            # set the chunk size of 1024 samples
+            chunk = 1024
+            # sample format
+            FORMAT = pyaudio.paInt16
+            # mono, change to 2 if you want stereo
+            channels = 1
+            # 44100 samples per second
+            sample_rate = 44100
+            record_seconds = 5
+            # initialize PyAudio object
+            p = pyaudio.PyAudio()
+            # open stream object as input & output
+            stream = p.open(format=FORMAT,
+                            channels=channels,
+                            rate=sample_rate,
+                            input=True,
+                            output=True,
+                            frames_per_buffer=chunk)
+            frames = []
+            print("Recording...")
+            for i in range(int(sample_rate / chunk * record_seconds)):
+                data = stream.read(chunk)
+                # if you want to hear your voice while recording
+                # stream.write(data)
+                frames.append(data)
+            print("Finished recording.")
+            # stop and close stream
+            stream.stop_stream()
+            stream.close()
+            # terminate pyaudio object
+            p.terminate()
+            # save audio file
+            # open the file in 'write bytes' mode
+            wf = wave.open(filename, "wb")
+            # set the channels
+            wf.setnchannels(channels)
+            # set the sample format
+            wf.setsampwidth(p.get_sample_size(FORMAT))
+            # set the sample rate
+            wf.setframerate(sample_rate)
+            # write the frames as bytes
+            wf.writeframes(b"".join(frames))
+            # close the file
+            wf.close()
+        except Exception as e:
+            print(e)
+    
+    def speech_to_text(self : "OpenAIConnection") -> str: #uses faster whisper
+        try:
+            model_size = "small.en"
+            text = ""
+
+            # Run on GPU with FP16
+            # model = WhisperModel(model_size, device="cuda", compute_type="float16")
+
+            # or run on GPU with INT8
+            # model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
+            # or run on CPU with INT8
+            model = WhisperModel(model_size, device="cpu", compute_type="int8")
+
+            segments, info = model.transcribe(f"{PATH}user_input.wav", beam_size=5)
+
+            print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
+
+            for segment in segments:
+                text += "[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text)
+                print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+
+            return text
+        except Exception as e:
+            print(e)
 
     def run(self : "OpenAIConnection") -> None: #master function for loading, chatting, saving db
         try:
@@ -138,7 +212,8 @@ class OpenAIConnection:
             #self.getPipeline()
             while True: #conversation loop
                 try:
-                    user_input = input("You: ")
+                    self.generate_audio()
+                    user_input = self.speech_to_text()
                 except EOFError:
                     print(
                         "No interactive input (stdin returned EOF). "
@@ -201,21 +276,10 @@ class OpenAIConnection:
                     for entry in res:
                         print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
                         self.bot.history.append({'role': entry[1], 'content': entry[2]})
-                # <-- DELETE WHEN DONE --> 
-                # else: 
-                #     self.appendSystemPrompt()
-                # self.bot.history[0] = {'role': 'system', 'content': SYSTEM_PROMPT}
-            # with sqlite3.connect(f"{CHATLOG_PATH}") as conn:
-            #     cur = conn.cursor()
-            #     res = cur.execute("select * from chatlog")
-            #     for entry in res:
-            #         print("Printing Chatlog: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
         except Exception as e:            
             print(f"Error loading file: {e}")
             print("Starting a new conversation.")
             print()
-            # <-- DELETE WHEN DONE -->
-            # self.appendSystemPrompt()
         return
 
     def trim_history(self : "OpenAIConnection", msg_limit : int = MSG_LIMIT) -> None: # cuts down chat history attribute to recent x messages
