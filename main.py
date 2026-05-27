@@ -1,5 +1,6 @@
 #dev branch
-try: 
+
+try: #imports 
     import requests
     import os
     import json
@@ -8,45 +9,39 @@ try:
     import warnings
     import sqlite3
     from typing import List, Any, Optional
-    from openai import OpenAI
+    from ollama import Client
     from dotenv import load_dotenv
 except KeyboardInterrupt as e:
-    print("Error: {e}")
+    print(f"Error: {e}")
     print("Exiting the program.")
 
 
-#retrieve api_key from .env file
+#retrieve localhost from .env file
 load_dotenv()
 if os.name == 'nt':
     import sys
     sys.stdout.reconfigure(encoding='utf-8')
-
-#API keys
 HF_TOKEN = os.getenv('HF_TOKEN')
-API_KEY = os.getenv('OPENROUTER_API_KEY')
 #PATHS
-BASE_URL = "https://openrouter.ai/api/v1"
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
 PATH="C:/Python/aishoyu/" 
 HISTORY_PATH = f"{PATH}/db/history.db"
 CHATLOG_PATH = f"{PATH}/db/chatlog.db"
+PORT = os.getenv('PORT')
 
 #LIMIT VARS
 WORD_LIMIT = 120
 SUMMARY_WORD_LIMIT=500
-MSG_LIMIT=10
+MSG_LIMIT=5
 
 #GLOBAL VARS
 CHAT_HISTORY=[]
 NEW_MSG=[]
 
-SYSTEM_PROMPT = ""
+# SYSTEM_PROMPT = ""
 ASSISTANT_PROMPT = ""
 
 class Bot: 
-    def __init__(self : "Bot", api_key : str, api_url : str, history: List[dict[str,str]], chatlog: List[dict[str,str]]) -> None: 
-        self.api_key : str = api_key
-        self.api_url : str = api_url
+    def __init__(self : "Bot", history: List[dict[str,str]], chatlog: List[dict[str,str]]) -> None: 
         self.history : List[dict[str,str]] = history
         self.chatlog :List[dict[str,str]] = chatlog
         self.run()
@@ -61,39 +56,30 @@ class Bot:
             cur.execute("create table if not exists chatlog(id integer primary key autoincrement, role text, msg text)")
     
     def loadPrompt(self: "Bot") -> None: 
-        global SYSTEM_PROMPT
+        # global SYSTEM_PROMPT
         global ASSISTANT_PROMPT
         try:
-            with open(f'{PATH}prompts/SYSTEM_PROMPT.txt', 'r', encoding='utf-8') as file:
-                SYSTEM_PROMPT = f"""${file.read()}"""
+            # with open(f'{PATH}prompts/SYSTEM_PROMPT.txt', 'r', encoding='utf-8') as file:
+            #     SYSTEM_PROMPT = f"""${file.read()}"""
             with open(f'{PATH}prompts/ASSISTANT_PROMPT.txt', 'r', encoding='utf-8') as file:
-                ASSISTANT_PROMPT = f"""${file.read()}"""
+                ASSISTANT_PROMPT = f"""{file.read().format(SUMMARY_WORD_LIMIT=SUMMARY_WORD_LIMIT)}"""
         except Exception as e: 
-            print("Error loading prompt: " + e)
+            print(f"Error loading prompt: {e}")
             
 
 class OpenAIConnection:
-    def __init__(self : "OpenAIConnection", bot : Bot, model : str, temperature : float, max_tokens : int):
+    def __init__(self : "OpenAIConnection", bot : Bot, model : str, assistant_model : str, temperature : float, max_tokens : int):
         self.bot : Bot = bot
         self.model : str = model
+        self.assistant_model = assistant_model
         self.temperature : float = temperature
         self.token_limit : int = max_tokens
-        self.headers : dict[str, str] = {
-            "Authorization": f"Bearer {self.bot.api_key}",
-            "Content-Type": "application/json"
-        }
-        # Use bot.api_key to initialize client
-        self.client = OpenAI(
-            base_url=BASE_URL,
-            api_key= self.bot.api_key,
+        self.client = Client(
+            host=PORT,
         )
         self.pipeline: Optional[Any] = None
 
-    def _close_(self : "OpenAIConnection") -> None: 
-        self.bot.con.close()
-        return
-
-    def getPipeline(self : "OpenAIConnection") -> Any: #runs imports locally for KeyboardError
+    def getPipeline(self : "OpenAIConnection") -> Any: #runs KokoroTTS imports locally 
         if self.pipeline is None:
             from huggingface_hub import login
             from kokoro import KPipeline
@@ -117,34 +103,21 @@ class OpenAIConnection:
             if (len(self.bot.history) > MSG_LIMIT):
                 self.summarize_history()
             entry = {'role': 'user', 'content': user_input}
-            self.bot.history.append(entry)
-            self.bot.chatlog.append(entry)
-            payload = {
-                "model": self.model,
-                "messages": self.bot.history, 
-                "reasoning": {
-                    "effort": "low",
-                    "max_tokens": self.token_limit
-                },
-                "provider": {
-                    "order": ['Alibaba'],
-                    "allow_fallbacks": True
-                }
-            }
-            response = self.client.chat.completions.create(
+
+            response = self.client.chat(
                 model=self.model,
-                messages=self.bot.history,
+                messages=self.bot.history+ [entry],
                 stream=True
             )
-        
+            
             for chunk in response:
-                if chunk.choices[0].delta.content is not None:
-                    content = chunk.choices[0].delta.content
-                    complete_response += content
-        
-                    print(content, end="", flush=True)
+                content = chunk['message']['content']
+                complete_response += content
+                print(content, end='', flush=True)
                 
             print()  # Add final newline
+            self.bot.history.append(entry)
+            self.bot.chatlog.append(entry)
             self.bot.history.append({"role": "assistant", "content": complete_response})# adds ai output to history
             self.bot.chatlog.append({"role": "assistant", "content": complete_response})
             #complete_response = self.removeUnwantedChars(complete_response)
@@ -152,11 +125,12 @@ class OpenAIConnection:
             return
         
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error during chat: {e}")
 
-    def appendSystemPrompt(self : "OpenAIConnection") -> None: # appends sys_prompt when chat_history.json reset, not exists, not loaded properly
-        self.bot.history.append({'role': 'system', 'content': SYSTEM_PROMPT})
-        return
+    # <-- DELETE WHEN DONE -->
+    # def appendSystemPrompt(self : "OpenAIConnection") -> None: # appends sys_prompt when chat_history.json reset, not exists, not loaded properly
+    #     self.bot.history.append({'role': 'system', 'content': SYSTEM_PROMPT})
+    #     return
 
     def run(self : "OpenAIConnection") -> None: #master function for loading, chatting, saving db
         try:
@@ -180,7 +154,7 @@ class OpenAIConnection:
                         print("Done!")
                     self.saveFile()
                     break
-                elif (user_input in ["reset"]): # resets file
+                elif (user_input in ["/reset"]): # resets file
                     if os.path.exists(f"{HISTORY_PATH}"):
                         os.remove(f"{HISTORY_PATH}")
                     else:
@@ -216,7 +190,7 @@ class OpenAIConnection:
         text = text.replace('  ',"")  
         return text          
 
-    def loadFile(self : "OpenAIConnection") -> None: #loads from db
+    def loadFile(self : "OpenAIConnection") -> None: #extracts db files into a class field
         try: 
             with sqlite3.connect(f"{HISTORY_PATH}") as conn: 
                 cur = conn.cursor()
@@ -227,9 +201,10 @@ class OpenAIConnection:
                     for entry in res:
                         print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
                         self.bot.history.append({'role': entry[1], 'content': entry[2]})
-                else: 
-                    self.appendSystemPrompt()
-                self.bot.history[0] = {'role': 'system', 'content': SYSTEM_PROMPT}
+                # <-- DELETE WHEN DONE --> 
+                # else: 
+                #     self.appendSystemPrompt()
+                # self.bot.history[0] = {'role': 'system', 'content': SYSTEM_PROMPT}
             # with sqlite3.connect(f"{CHATLOG_PATH}") as conn:
             #     cur = conn.cursor()
             #     res = cur.execute("select * from chatlog")
@@ -239,74 +214,66 @@ class OpenAIConnection:
             print(f"Error loading file: {e}")
             print("Starting a new conversation.")
             print()
-            self.appendSystemPrompt()
-            # <--- delete when done --->
-            # if os.path.exists(f"{PATH}chat_history.json"): #check file existence
-            #     try:
-            #         with open(f"{PATH}chat_history.json", "r", encoding='utf-8') as readfile:
-            #             self.bot.history = json.load(readfile)
-            #     except Exception as e: 
-            #         print(f"Error while reading file: {e}.")
-            #         self.appendSystemPrompt()
-            # else: #file doesn't exist -> print error msg & create new
-            #     print("Error: File not Found. Starting a new conversation...")
-            #     self.appendSystemPrompt()
+            # <-- DELETE WHEN DONE -->
+            # self.appendSystemPrompt()
         return
 
     def trim_history(self : "OpenAIConnection", msg_limit : int = MSG_LIMIT) -> None: # cuts down chat history attribute to recent x messages
-        sys_prompt = self.bot.history[0]
         if len(self.bot.history) > msg_limit:
-            self.bot.history = [sys_prompt] + self.bot.history[-(msg_limit-1):]
+            self.bot.history = self.bot.history[-(msg_limit-1):]
         return self.bot.history
         
     def summarize_history(self : "OpenAIConnection", msg_limit : int = MSG_LIMIT) -> None: # cuts down chat history attribute to 1 summary when history exceeds context length
         try: 
-            summary_prompt : List[dict[str,str]] = [{'role': 'system', 'content': ASSISTANT_PROMPT}]
-            if int(len(self.bot.history)) > msg_limit: # appends past conversation to str
-                for msg in self.bot.history[1:]:
-                    summary_prompt.append({'role': msg['role'], 'content': msg['content']})
-            full_reply = "" # init completion tokens
-            payload = {
-                "model": self.model,
-                "messages": summary_prompt,
-                "reasoning": {
-                    "max_tokens": 1000
-                }
-            }
-            response=requests.post(self.bot.api_url, headers=self.headers, json=payload)
-            data = response.json()
-            full_reply = data['choices'][0]['message']['content']
-            self.bot.history = [self.bot.history[0]] # CLEARS self.bot.history attribute
-            self.bot.history.append({'role': 'assistant', 'content': full_reply})
-            print(f"Model: {data['model']} by {data['provider']}")
-            print(f"Response: {full_reply}")
+            lastTwoMsgs = []
+            complete_response = ""
+            msgSum = ""
+            if int(len(self.bot.history)) > msg_limit: 
+                for msg in self.bot.history:
+                    msgSum += f"\n('role': {msg['role']}, 'content': {msg['content']})"
+                    # summary_prompt.append({'role': msg['role'], 'content': msg['content']})
+            print(msgSum)
+            summary_prompt : List[dict[str,str]] = [{'role': 'user', 'content': msgSum}]
+            response = self.client.chat(
+                model=self.assistant_model,
+                messages=summary_prompt,
+                stream=True
+            )
+            print("Summarizing chat history")
+            for chunk in response:
+                content = chunk['message']['content']
+                complete_response += content
+                print(content, end='', flush=True)
+            lastTwoMsgs = self.bot.history[-2:]
+            self.bot.history = []
+            self.bot.history.append({'role': 'assistant', 'content': complete_response})
+            self.bot.history = self.bot.history + lastTwoMsgs
         except Exception as e:
             print(f"Error while summarizing: {e}")
         return
 
-    def saveChatLog(self : "OpenAIConnection") -> None:
+    def saveChatLog(self : "OpenAIConnection") -> None: #inserts conversations history to chatlog.db
         try: 
             with sqlite3.connect(f"{CHATLOG_PATH}") as conn:
                 cur = conn.cursor()
                 data = [(msg['role'], msg['content']) for i, msg in enumerate(self.bot.chatlog)]
                 print("Saving chat log: ")
                 for entry in data:
-                    print("saving: " + entry[0] + " " + entry[1])
+                    print("saving to chatlog: " + entry[0] + " " + entry[1])
                     cur.execute(f"insert into chatlog values(null,?,?)", (entry[0], entry[1]))
                 cur.execute("select * from chatlog")
-                print(str(cur.fetchall()))
                 conn.commit()
         except Exception as e:
             print(f"Error Saving Chatlog: {e}")
 
-    def saveFile(self : "OpenAIConnection") -> None: #saves summarized history to db
+    def saveFile(self : "OpenAIConnection") -> None: #saves summarized history to history.db
         try:
             with sqlite3.connect(f"{HISTORY_PATH}") as conn:
                 cur = conn.cursor()
                 cur.execute(f"delete from history")
                 data = [(msg['role'], msg['content']) for i, msg in enumerate(self.bot.history)]
                 for entry in self.bot.history:
-                    print("saving: " + entry['role'] + " " + entry['content'])
+                    print("saving to history: " + entry['role'] + " " + entry['content'])
                     cur.execute(f"insert into history values(null,?,?)", (entry['role'], entry['content']))
                 conn.commit()
             return
@@ -339,8 +306,9 @@ class OpenAIConnection:
         return
 
 if __name__ == "__main__": # executes only when run directly
-    bot : Bot = Bot(API_KEY, API_URL, CHAT_HISTORY, NEW_MSG)
-    ai_connection : OpenAIConnection = OpenAIConnection(bot, "deepseek/deepseek-v3.2", 0.7, 10)
+    print(f"Running on port: {PORT}")
+    bot : Bot = Bot(CHAT_HISTORY, NEW_MSG)
+    ai_connection = OpenAIConnection(bot, "shoyu_v1", "shoyu_stm", 0.7, 10)
     print("Starting the program...")
     ai_connection.run()
     
