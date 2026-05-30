@@ -1,0 +1,12 @@
+requests
+numpy
+faster_whisper
+ollama
+dotenv
+python-dotenv
+huggingface_hub
+pyaudio
+keyboard
+fastapi
+uvicorn
+pydantic
