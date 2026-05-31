@@ -394,12 +394,10 @@ class OpenAIConnection:
         return
 
 if __name__ == "__main__": # python -m uvicorn main:app --reload
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
-    print(f"Running on port: {PORT}")
     bot : Bot = Bot(CHAT_HISTORY, NEW_MSG)
     ai_connection = OpenAIConnection(bot, "shoyu_v1", "shoyu_stm", 0.7, 10)
     print("Starting the program...")
     
-    # ai_connection.run()
+    ai_connection.run()
     
 

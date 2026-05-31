@@ -1,0 +1,34 @@
+# @app.post("/dumpDB")
+# async def addChatHistory(data : dict):
+#     def saveFile(path : str, data : dict): #saves summarized history to history.db
+#         try:
+#             with sqlite3.connect(path) as conn:
+#                 #print(type(data), data['list'])
+#                 cur = conn.cursor()
+#                 cur.execute(f"delete from history")
+#                 #formatted_data = [(msg['role'], msg['content']) for i, msg in enumerate(data['list'])]
+#                 #for entry in data['list']:
+#                     # print("saving to history: " + entry['role'] + " " + entry['content'])
+#                     # cur.execute(f"insert into history values(null,?,?)", (entry['role'], entry['content']))
+#                 conn.commit()
+#             return data
+#         except Exception as e:
+#             print(f"Error Saving File: {e}")
+#             return None
+#     return saveFile(HISTORY_PATH, data)
+
+    useEffect(()=> { //calls dumpDB endpoint
+        const handleDumpDB = async () => {
+            await api.post("/dumpLog", {list: chatLog})
+            .then((response) => {
+                console.log(response.data); // Parsed JSON object/array
+            })
+            .catch((error) => {
+                console.error("Error:", error);
+            });
+        }
+        if (isSaving) {
+            handleDumpDB()
+            setIsSaving(false)
+        }
+    }, [chatLog])

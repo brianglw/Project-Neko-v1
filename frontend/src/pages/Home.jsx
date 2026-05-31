@@ -5,8 +5,11 @@ import {useState, useEffect} from 'react'
 import api from '../services/api.js'
 
 const Home = () => {
+    const [msg, setMsg] = useState("")
     const [history, setHistory] = useState([])
-    const [newMsg, setNewMsg] = useState([])
+    const [chatLog, setchatLog] = useState([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [isSaving, setIsSaving] = useState(false)
 
     useEffect(()=> { //calls loadDb endpoint
         const handleLoadDB = async() => {
@@ -18,21 +21,65 @@ const Home = () => {
                 console.error("Error:", error);
             });
         }
-        handleLoadDB()
+        if (isLoading) {
+            handleLoadDB()
+            setIsLoading(false)
+        }
     }, [])
 
-    // useEffect(async ()=> { //calls dumpDB endpoint
-    //     response = await api.post("/dumpDB")
-    //     setHistory(response)
-    // }, [history])
+    useEffect(()=> { //calls dumpDB endpoint
+        const handleDumpDB = async () => {
+            await api.post("/dumpDB", {list: history})
+            .then((response) => {
+                console.log(response.data); // Parsed JSON object/array
+            })
+            .catch((error) => {
+                console.error("Error:", error);
+            });
+        }
+        if (isSaving) {
+            handleDumpDB()
+            setIsSaving(false)
+        }
+    }, [history])
 
-    // useEffect(async ()=> { //calls dumpLog endpoint
-    //     response = await api.post("/dumpLog")
-    // }, [newMsg])
-    
+    useEffect(async ()=> { //calls dumpLog endpoint
+        const handleDumpLog = async () => {
+            await api.post("/dumpDB", {list: history})
+            .then((response) => {
+                console.log(response.data); // Parsed JSON object/array
+            })
+            .catch((error) => {
+                console.error("Error:", error);
+            });
+        }
+        if (isSaving) {
+            handleDumpDB()
+            setIsSaving(false)
+        }
+    }, [chatLog])
+
+    const handleTextChange = (e) => {
+        e.preventDefault()
+        setMsg(e.target.value)
+        console.log(msg)
+    }
+
+    const handleSubmit = (e) => {
+        e.preventDefault()
+        const formatted_msg = {'role': 'user', 'content': msg}
+        setIsSaving(true)
+        setHistory((prev) => {
+            return [...prev, formatted_msg]
+        })
+        console.log(history)
+        setMsg("")
+        console.log(formatted_msg)
+    }
+
     return (
         <main>
-            <form>
+            <form id="send" onSubmit={handleSubmit}>
                 <TextField
                     fullWidth
                     id="filled-multiline-static"
@@ -41,8 +88,10 @@ const Home = () => {
                     rows={4}
                     placeholder='Type your message here'
                     variant="filled"
+                    onChange={handleTextChange}
+                    value={msg}
                 />
-                <Button variant="contained">
+                <Button type='submit' variant="contained" >
                     <SendIcon />
                 </Button>
                 {history.map((msg) => {

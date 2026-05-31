@@ -1,4 +1,5 @@
 #run: .venv/Scripts/activate
+# python -m uvicorn server:app --reload
 try: #imports 
     import requests
     import keyboard
@@ -20,8 +21,7 @@ try: #imports
     from fastapi.middleware.cors import CORSMiddleware
     import uvicorn
     from pydantic import BaseModel
-
-    from bot import Bot, OpenAIConnection
+    from bot import Base_LLM
 except KeyboardInterrupt as e:
     print(f"Error: {e}")
     print("Exiting the program.")
@@ -81,27 +81,27 @@ async def getChatHistory():
                 if (numRows > 0):
                     res = cur.execute("select * from history")
                     for entry in res:
-                        print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
+                        # print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
                         db.append({'role': entry[1], 'content': entry[2]})
         except Exception as e:            
             print(f"Error loading file: {e}")
         return db
     
     data = loadFile(HISTORY_PATH)
-    print("loaded file data:", data)
+    # print("loaded file data:", data)
     return data
 
 @app.post("/dumpDB")
 async def addChatHistory(data : dict):
     def saveFile(path : str, data : dict): #saves summarized history to history.db
-        db = []
         try:
             with sqlite3.connect(path) as conn:
+                #print(type(data), data['list'])
                 cur = conn.cursor()
                 cur.execute(f"delete from history")
-                formatted_data = [(msg['role'], msg['content']) for i, msg in enumerate(db)]
-                for entry in data:
-                    print("saving to history: " + entry['role'] + " " + entry['content'])
+                #formatted_data = [(msg['role'], msg['content']) for i, msg in enumerate(data['list'])]
+                for entry in data['list']:
+                    # print("saving to history: " + entry['role'] + " " + entry['content'])
                     cur.execute(f"insert into history values(null,?,?)", (entry['role'], entry['content']))
                 conn.commit()
             return data
@@ -114,54 +114,20 @@ async def addChatHistory(data : dict):
 @app.post("/dumpLog")
 async def addChatLog(data : dict):
     def saveChatLog(path : str, data : dict):
-        db = []
         try: 
             with sqlite3.connect(f"{CHATLOG_PATH}") as conn:
                 cur = conn.cursor()
-                data = [(msg['role'], msg['content']) for i, msg in enumerate()]
-                print("Saving chat log: ")
-                for entry in data:
-                    print("saving to chatlog: " + entry[0] + " " + entry[1])
-                    cur.execute(f"insert into chatlog values(null,?,?)", (entry[0], entry[1]))
-                cur.execute("select * from chatlog")
+                print("Saving chat log...")
+                # print(type(data['list']), data['list'])
+                # print("saving to chatlog: " + data['role'] + " " + data['content'])
+                cur.execute(f"insert into chatlog values(null,?,?)", (data['role'], data['content']))
+                # cur.execute("select * from chatlog order by id desc limit 1")
+                # print(cur.fetchone())
                 conn.commit()
         except Exception as e:
             print(f"Error Saving Chatlog: {e}")
             return None
     return saveChatLog(CHATLOG_PATH, data)
-
-
-#summarizeHistory
-@app.post("/summarize")
-async def summarizeHistory():
-    def summarize_history(self : "OpenAIConnection", msg_limit : int = MSG_LIMIT) -> None: # cuts down chat history attribute to 1 summary when history exceeds context length
-        try: 
-            lastTwoMsgs = []
-            complete_response = ""
-            msgSum = ""
-            if int(len(self.bot.history)) > msg_limit: 
-                for msg in self.bot.history:
-                    msgSum += f"\n('role': {msg['role']}, 'content': {msg['content']})"
-                    # summary_prompt.append({'role': msg['role'], 'content': msg['content']})
-            print(msgSum)
-            summary_prompt : List[dict[str,str]] = [{'role': 'user', 'content': msgSum}]
-            response = self.client.chat(
-                model=self.assistant_model,
-                messages=summary_prompt,
-                stream=True
-            )
-            print("Summarizing chat history")
-            for chunk in response:
-                content = chunk['message']['content']
-                complete_response += content
-                print(content, end='', flush=True)
-            lastTwoMsgs = self.bot.history[-2:]
-            self.bot.history = []
-            self.bot.history.append({'role': 'assistant', 'content': complete_response})
-            self.bot.history = self.bot.history + lastTwoMsgs
-        except Exception as e:
-            print(f"Error while summarizing: {e}")
-        return
 
 #runLLM
 @app.get("/run")
@@ -170,9 +136,11 @@ async def run():
 
 #chatLLM
 @app.post("/chat")
-async def chat():
-    return
+async def chat(history: dict):
+    reply = Base_LLM.chat(history)
+    print("reply:", reply)
+    return reply
 
 
-if __name__ == "__main__": # python -m uvicorn server:app --reload
+if __name__ == "__main__": 
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

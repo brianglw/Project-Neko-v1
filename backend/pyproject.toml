@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "keyboard>=0.13.5",
+    "python-multipart>=0.0.29",
 ]
