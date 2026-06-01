@@ -124,21 +124,31 @@ async def addChatLog(data : dict):
                 # cur.execute("select * from chatlog order by id desc limit 1")
                 # print(cur.fetchone())
                 conn.commit()
+                return data
         except Exception as e:
             print(f"Error Saving Chatlog: {e}")
             return None
     return saveChatLog(CHATLOG_PATH, data)
 
 #runLLM
-@app.get("/run")
+@app.post("/new")
 async def run():
-    return
+    Base_LLM._createtables_("history", HISTORY_PATH)
+    Base_LLM._createtables_("chatlog", CHATLOG_PATH)
+    return {}
+
+@app.post("/reset")
+async def clearDBFiles():
+    Base_LLM._cleartable_(HISTORY_PATH, "history")
+    Base_LLM._cleartable_(CHATLOG_PATH, "chatlog")
+    return {}
 
 #chatLLM
 @app.post("/chat")
 async def chat(history: dict):
+    print("Received history", history)
     reply = Base_LLM.chat(history)
-    print("reply:", reply)
+    print("LLM reply:", reply)
     return reply
 
 
