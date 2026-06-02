@@ -15,7 +15,6 @@ try: #imports
     import time
     from faster_whisper import WhisperModel
     from typing import List, Any, Optional
-    from ollama import Client
     from dotenv import load_dotenv
     from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
@@ -46,12 +45,6 @@ MSG_LIMIT=14
 SILENCE_TIMEOUT = 3.0
 MIC_THRESHOLD = 500
 
-#GLOBAL VARS
-CHAT_HISTORY=[]
-NEW_MSG=[]
-
-# SYSTEM_PROMPT = ""
-ASSISTANT_PROMPT = ""
 
 app = FastAPI(debug=True)
 
@@ -69,68 +62,44 @@ app.add_middleware(
 )
 
 
-@app.get("/loadDB")
-async def getChatHistory():
-    def loadFile(path : str) -> List[dict]: #extracts db files into a class field
-        db = []
-        try: 
-            with sqlite3.connect(path) as conn: 
-                cur = conn.cursor()
-                cur.execute("select count(*) from history")
-                numRows = cur.fetchone()[0]
-                if (numRows > 0):
-                    res = cur.execute("select * from history")
-                    for entry in res:
-                        # print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
-                        db.append({'role': entry[1], 'content': entry[2]})
-        except Exception as e:            
-            print(f"Error loading file: {e}")
-        return db
-    
-    data = loadFile(HISTORY_PATH)
-    # print("loaded file data:", data)
-    return data
+@app.get("/loadDB/{filename}")
+async def loadFile(filename:str) -> List[dict]: #extracts db files into a class field
+    db = []
+    try: 
+        path = HISTORY_PATH if filename == "history" else CHATLOG_PATH if filename == "chatlog" else None
+        with sqlite3.connect(path) as conn: 
+            cur = conn.cursor()
+            cur.execute(f"select count(*) from {filename}")
+            numRows = cur.fetchone()[0]
+            if (numRows > 0):
+                res = cur.execute(f"select * from {filename}")
+                for entry in res:
+                    # print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
+                    db.append({'role': entry[1], 'content': entry[2]})
+        return {"list": db}
+    except Exception as e:            
+        print(f"Error loading file: {e}")
+        return None
 
-@app.post("/dumpDB")
-async def addChatHistory(data : dict):
-    def saveFile(path : str, data : dict): #saves summarized history to history.db
-        try:
-            with sqlite3.connect(path) as conn:
-                #print(type(data), data['list'])
-                cur = conn.cursor()
-                cur.execute(f"delete from history")
-                #formatted_data = [(msg['role'], msg['content']) for i, msg in enumerate(data['list'])]
-                for entry in data['list']:
-                    # print("saving to history: " + entry['role'] + " " + entry['content'])
-                    cur.execute(f"insert into history values(null,?,?)", (entry['role'], entry['content']))
-                conn.commit()
-            return data
-        except Exception as e:
-            print(f"Error Saving File: {e}")
-            return None
-    return saveFile(HISTORY_PATH, data)
-    
 
-@app.post("/dumpLog")
-async def addChatLog(data : dict):
-    def saveChatLog(path : str, data : dict):
-        try: 
-            with sqlite3.connect(f"{CHATLOG_PATH}") as conn:
-                cur = conn.cursor()
-                print("Saving chat log...")
-                # print(type(data['list']), data['list'])
-                # print("saving to chatlog: " + data['role'] + " " + data['content'])
-                cur.execute(f"insert into chatlog values(null,?,?)", (data['role'], data['content']))
-                # cur.execute("select * from chatlog order by id desc limit 1")
-                # print(cur.fetchone())
-                conn.commit()
-                return data
-        except Exception as e:
-            print(f"Error Saving Chatlog: {e}")
-            return None
-    return saveChatLog(CHATLOG_PATH, data)
+@app.post("/dumpDB/{filename}")
+async def saveFile(filename : str, data : dict): #saves summarized history to history.db
+    try:
+        path = HISTORY_PATH if filename == "history" else CHATLOG_PATH if filename == "chatlog" else None
+        with sqlite3.connect(path) as conn:
+            #print(type(data), data['list'])
+            cur = conn.cursor()
+            if (filename == "history"):
+                cur.execute(f"delete from {filename}")
+            for entry in data['list']:
+                # print("saving to history: " + entry['role'] + " " + entry['content'])
+                cur.execute(f"insert into {filename} values(null,?,?)", (entry['role'], entry['content']))
+            conn.commit()
+        return data
+    except Exception as e:
+        print(f"Error Saving File: {e}")
+        return None
 
-#runLLM
 @app.post("/new")
 async def run():
     Base_LLM._createtables_("history", HISTORY_PATH)
@@ -143,13 +112,12 @@ async def clearDBFiles():
     Base_LLM._cleartable_(CHATLOG_PATH, "chatlog")
     return {}
 
-#chatLLM
 @app.post("/chat")
 async def chat(history: dict):
     print("Received history", history)
-    reply = Base_LLM.chat(history)
-    print("LLM reply:", reply)
-    return reply
+    reply_history = Base_LLM.chat(history) # {"list": [{}]}
+    print("LLM reply:", reply_history)
+    return reply_history
 
 
 if __name__ == "__main__": 

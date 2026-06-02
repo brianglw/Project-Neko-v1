@@ -7,10 +7,10 @@ import api from '../services/api.js'
 const Home = () => {
     const [msg, setMsg] = useState("")
     const [history, setHistory] = useState([])
-    const [chatLog, setchatLog] = useState([])
-    const [isLoading, setIsLoading] = useState(true)
-    const [isSaving, setIsSaving] = useState(false)
-    const [isLogging, setIsLogging] = useState(false)
+    const [chatLog, setChatLog] = useState([])
+    const [doesLoading, setDoesLoading] = useState(true)
+    const [doesSaving, setDoesSaving] = useState(false)
+    const [doesLogging, setDoesLogging] = useState(false)
 
     useEffect(()=> { //calls loadDb endpoint
         const createNewDB = async() => {
@@ -21,68 +21,50 @@ const Home = () => {
                 console.error("Error:", error);
             });
         }
-        const handleLoadDB = async() => {
-            await api.get("/loadDB").then((response) => {
+        const handleLoadDB = async(filename) => {
+            await api.get(`/loadDB/${filename}`)
+            .then((response) => {
                 console.log(response.data); // Parsed JSON object/array
-                setHistory(response.data)
+                setHistory(response.data['list'])
             })
             .catch((error) => {
                 console.error("Error:", error);
             });
         }
-        if (isLoading) {
+        if (doesLoading) {
             createNewDB()
-            handleLoadDB()
-            setIsLoading(false)
+            handleLoadDB("history")
+            setDoesLoading(false)
         }
     }, [])
 
     useEffect(()=> { //calls dumpDB endpoint
-        const handleDumpDB = async () => {
-            await api.post("/dumpDB", {list: history})
+        const handleDumpDB = async (data, filename) => {
+            await api.post(`/dumpDB/${filename}`, {list: data})
             .then((response) => {
-                console.log("Dumping history into db", response.data); // Parsed JSON object/array
+                console.log("Dumping history into db", response.data); 
             })
             .catch((error) => {
                 console.error("Error:", error);
             });
         }
-        if (isSaving) {
-            handleDumpDB()
-            setIsSaving(false)
+        if (doesSaving) {
+            handleDumpDB(history, "history")
+            setDoesSaving(false)
         }
-    }, [history])
-
-    useEffect(()=> { //calls dumpLog endpoint
-        const handleDumpLog = async () => {
-            await api.post("/dumpDB", {list: history})
-            .then((response) => {
-                console.log(response.data); 
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
+        if (doesLogging) {
+            const last_i = history.length - 1
+            handleDumpDB(history[last_i], "chatlog")
+            setDoesLogging(false)
         }
-        if (isLogging) {
-            handleDumpDB()
-            setIsLogging(false)
-        }
-    }, [chatLog])
-
-    const chat = async () => {
-        await api.post("/chat", {'list': history})
-        .then((response) => {
-            setHistory(prev=>[...prev,response.data['list']])
-            console.log("Fetching /chat API response", response.data); // Parsed JSON object/array
-        })
-        .catch((error) => {
-            console.error("Error:", error);
-        });
-    }
+    }, [history, chatLog])
 
     const handleReset = async () => {
-        await api.post("/reset").then((response) => {
-                console.log(response.data); 
+        await api.post("/reset")
+            .then((response) => {
+                console.log(response.data);
+                setHistory([])
+                setChatLog([]) 
             })
             .catch((error) => {
                 console.error("Error:", error);
@@ -93,19 +75,24 @@ const Home = () => {
         e.preventDefault()
         setMsg(e.target.value)
     }
-    const handleChat = () => {
+    const handleChat = async () => {
         const formatted_msg = {'role': 'user', 'content': msg}
-        setIsSaving(true)
-        setIsLogging(true)
-        console.log("formatted msg", formatted_msg)
-        console.log("history",history)
-        setHistory([...prev, formatted_msg]
-        )
+        setDoesSaving(true)
+        setDoesLogging(true)
+        setHistory(prev => [...prev, formatted_msg])
+        setChatLog(prev => [...prev, formatted_msg])
         console.log("Chatting with current history...", history)
-        const resp_history = chat()
-        setHistory(resp_history)
+        await api.post("/chat", {'list': history})
+        .then((response) => {
+            setHistory(prev => [...history,...response.data['list']])
+            setChatLog(prev => [...prev, response.data['list']])
+            console.log("Fetching /chat API response", response.data); 
+        })
+        .catch((error) => {
+            console.error("Error:", error);
+        });
         setMsg("")
-        console.log(history)
+        console.log("After reply", history)
     }
     const handleSubmit = (e) => {
         e.preventDefault()
@@ -134,7 +121,7 @@ const Home = () => {
                     <SendIcon />
                 </Button>
                 <div>
-                    {history ? <h1>Empty</h1> : history.map((msg) => {
+                    {history == [] ? <h1>Empty</h1> : history.map((msg) => {
                         return <p>{`${msg.role}: ${msg.content}`}</p>
                     })}
                 </div>

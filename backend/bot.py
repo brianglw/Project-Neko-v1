@@ -31,6 +31,8 @@ class Bot:
             with sqlite3.connect(f"{path}") as conn:
                 cur = conn.cursor()
                 cur.execute(f"delete from {filename}")
+                cur.execute(f"select * from {filename}")
+                print(f"fetching files from {filename}", cur.fetchall())
                 conn.commit()
                 return {}
         except Exception as e:
@@ -59,12 +61,13 @@ class Bot:
                 
             complete_response = {"role": "assistant", "content": complete_response}
             history['list'].append(complete_response)
-            print(history)  # Add final newline
+            print(history)  
             #complete_response = self.removeUnwantedChars(complete_response)
             #self.text_to_speech(complete_response, 'af_bella,af_heart')
             return history
         
         except Exception as e:
             print(f"Error during chat: {e}")
+            return None
 
 Base_LLM = Bot( "shoyu_v1", "shoyu_stm")
