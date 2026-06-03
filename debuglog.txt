@@ -10,3 +10,9 @@
 [What I did] Added try-except blocks + Escalated to CursorAI
 [Solution] Changed launch.json to "console": "integratedTerminal"
 
+6/3/2026 8:32am - /dumpDB return None
+[Details] server.py saveFile(): 'Message' object is not subscriptable
+INFO:     127.0.0.1:65299 - "POST /dumpDB/history HTTP/1.1" 500 Internal Server Error
+[Cause] Accessing class instance properties with object syntax
+[What I did] Prior steps: I created a Message, MessageList BaseModel subclass to store chat messages in a list, validated by Pydantic, which changed data validation type from dict[str, list[str,str]] to MessageList class. Used console loop before looping over entry['data'] and discovered access to a class with object notation is incompatible.
+[Solution] Use 'model.member' member operator instead of model['member'] to access a class property. 

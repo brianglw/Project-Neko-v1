@@ -12,7 +12,7 @@ const Home = () => {
     const [doesSaving, setDoesSaving] = useState(false)
     const [doesLogging, setDoesLogging] = useState(false)
 
-    useEffect(()=> { //calls loadDb endpoint
+    useEffect(()=> { //creates connection to an existing db, or creates new one if doesn't exist
         const createNewDB = async() => {
             await api.post("/new").then((response) => {
                 console.log(response.data); // Parsed JSON object/array
@@ -24,8 +24,8 @@ const Home = () => {
         const handleLoadDB = async(filename) => {
             await api.get(`/loadDB/${filename}`)
             .then((response) => {
-                console.log(response.data); // Parsed JSON object/array
-                setHistory(response.data['list'])
+                console.log(typeof response.data, response.data); // Parsed JSON object/array
+                setHistory(response.data['memo'])
             })
             .catch((error) => {
                 console.error("Error:", error);
@@ -38,28 +38,29 @@ const Home = () => {
         }
     }, [])
 
-    useEffect(()=> { //calls dumpDB endpoint
+    useEffect(()=> { //updates history (short-term) and chatlog DB each chat state changes
         const handleDumpDB = async (data, filename) => {
-            await api.post(`/dumpDB/${filename}`, {list: data})
+            await api.post(`/dumpDB/${filename}`, {memo: data})
             .then((response) => {
-                console.log("Dumping history into db", response.data); 
+                console.log(`Dumped ${filename} into db`, response.data); 
             })
             .catch((error) => {
                 console.error("Error:", error);
             });
         }
         if (doesSaving) {
+            print("Dumping history", history)
             handleDumpDB(history, "history")
             setDoesSaving(false)
         }
         if (doesLogging) {
-            const last_i = history.length - 1
-            handleDumpDB(history[last_i], "chatlog")
+            print("Dumping log", history)
+            handleDumpDB(history.at(-1), "chatlog")
             setDoesLogging(false)
         }
     }, [history, chatLog])
 
-    const handleReset = async () => {
+    const handleReset = async () => { //clears DB records and empties chat state
         await api.post("/reset")
             .then((response) => {
                 console.log(response.data);
@@ -71,21 +72,25 @@ const Home = () => {
             }
         );
     }
-    const handleTextChange = (e) => {
+
+    const handleTextChange = (e) => { //updates state from textbox value as user enters
         e.preventDefault()
         setMsg(e.target.value)
     }
-    const handleChat = async () => {
+
+    const handleChat = async () => { 
         const formatted_msg = {'role': 'user', 'content': msg}
         setDoesSaving(true)
         setDoesLogging(true)
         setHistory(prev => [...prev, formatted_msg])
         setChatLog(prev => [...prev, formatted_msg])
         console.log("Chatting with current history...", history)
-        await api.post("/chat", {'list': history})
+        await api.post("/chat", {'memo': history})
         .then((response) => {
-            setHistory(prev => [...history,...response.data['list']])
-            setChatLog(prev => [...prev, response.data['list']])
+            setHistory(...response.data['memo'])
+            setChatLog(prev => [...prev, response.data['memo'].at(-1)])
+            console.log("History after reply", history)
+            console.log("Chatlog after reply", chatLog)
             console.log("Fetching /chat API response", response.data); 
         })
         .catch((error) => {
@@ -94,6 +99,7 @@ const Home = () => {
         setMsg("")
         console.log("After reply", history)
     }
+
     const handleSubmit = (e) => {
         e.preventDefault()
         if (msg.trim().toLowerCase() == "/reset") {
