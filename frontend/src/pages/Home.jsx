@@ -12,19 +12,20 @@ const Home = () => {
     const [doesSaving, setDoesSaving] = useState(false)
     const [doesLogging, setDoesLogging] = useState(false)
 
+
     useEffect(()=> { //creates connection to an existing db, or creates new one if doesn't exist
         const createNewDB = async() => {
             await api.post("/new").then((response) => {
-                console.log(response.data); // Parsed JSON object/array
+                // console.log(response.data); // Parsed JSON object/array
             })
             .catch((error) => {
-                console.error("Error:", error);
+                console.error(`Home.jsx ${createNewDB.name}`, error);
             });
         }
         const handleLoadDB = async(filename) => {
             await api.get(`/loadDB/${filename}`)
             .then((response) => {
-                console.log(typeof response.data, response.data); // Parsed JSON object/array
+                console.log(`Home.jsx ${handleLoadDB.name}`, response.data); // Parsed JSON object/array
                 setHistory(response.data['memo'])
             })
             .catch((error) => {
@@ -40,31 +41,49 @@ const Home = () => {
 
     useEffect(()=> { //updates history (short-term) and chatlog DB each chat state changes
         const handleDumpDB = async (data, filename) => {
-            await api.post(`/dumpDB/${filename}`, {memo: data})
+            await api.post(`/dumpDB/${filename}`, {'memo': data})
             .then((response) => {
-                console.log(`Dumped ${filename} into db`, response.data); 
+                console.log(`Home.jsx ${handleDumpDB.name} history`, `sent ${JSON.stringify({'memo': data})}`, `received ${JSON.stringify(response.data)}`); 
             })
             .catch((error) => {
-                console.error("Error:", error);
+                console.error(`Home.jsx ${handleDumpDB.name}`, error);
             });
         }
         if (doesSaving) {
-            print("Dumping history", history)
             handleDumpDB(history, "history")
-            setDoesSaving(false)
+            setDoesSaving
+        }
+    }, [history])
+
+    useEffect(()=> { //updates history (short-term) and chatlog DB each chat state changes
+        const handleDumpDB = async (data, filename) => {
+            await api.post(`/dumpDB/${filename}`, {'memo': data})
+            .then((response) => {
+                console.log(`Home.jsx ${handleDumpDB.name} chatlog`, `sent ${JSON.stringify({'memo': data})}`, `received ${JSON.stringify(response.data)}`)
+            })
+            .catch((error) => {
+                console.error(`Home.jsx ${handleDumpDB.name}`, error);
+            });
         }
         if (doesLogging) {
-            print("Dumping log", history)
-            handleDumpDB(history.at(-1), "chatlog")
+            if (chatLog.length === 0) {
+                handleDumpDB([], "chatlog")
+            } else {
+                console.log(`Home.jsx ${handleDumpDB.name} chatlog`, chatLog)
+                handleDumpDB(chatLog.slice(-2), "chatlog")
+            }
             setDoesLogging(false)
         }
-    }, [history, chatLog])
+        
+    }, [chatLog])
 
     const handleReset = async () => { //clears DB records and empties chat state
         await api.post("/reset")
             .then((response) => {
-                console.log(response.data);
+                console.log(`Home.jsx ${handleReset.name}`, response.data);
+                setDoesSaving(true)
                 setHistory([])
+                setDoesLogging(true)
                 setChatLog([]) 
             })
             .catch((error) => {
@@ -80,35 +99,45 @@ const Home = () => {
 
     const handleChat = async () => { 
         const formatted_msg = {'role': 'user', 'content': msg}
-        setDoesSaving(true)
-        setDoesLogging(true)
-        setHistory(prev => [...prev, formatted_msg])
-        setChatLog(prev => [...prev, formatted_msg])
-        console.log("Chatting with current history...", history)
-        await api.post("/chat", {'memo': history})
+        // console.log("Chatting with current history...", history)
+        await api.post("/chat", {'memo': [...history, formatted_msg]})
         .then((response) => {
-            setHistory(...response.data['memo'])
-            setChatLog(prev => [...prev, response.data['memo'].at(-1)])
-            console.log("History after reply", history)
-            console.log("Chatlog after reply", chatLog)
-            console.log("Fetching /chat API response", response.data); 
+            console.log(`Home.jsx ${handleChat.name}`, response.data)
+            setHistory(response.data['memo'])
+            setChatLog((prev) => ([...prev, response.data['memo'].at(-1)]))
+            // console.log("History after reply", history)
+            // console.log("Chatlog after reply", chatLog)
+            // console.log("Fetching /chat API response", response.data); 
         })
         .catch((error) => {
-            console.error("Error:", error);
+            console.error(`Home.jsx ${handleChat.name}`, error);
         });
         setMsg("")
-        console.log("After reply", history)
     }
 
     const handleSubmit = (e) => {
-        e.preventDefault()
-        if (msg.trim().toLowerCase() == "/reset") {
-            handleReset()
-        } else {
-            handleChat()
+        try {
+            e.preventDefault()
+            if (msg.trim().toLowerCase() == "/reset") {
+                handleReset()
+            } else {
+                handleChat()
+            }
+        } catch (e) {
+            console.log(`Home.jsx ${handleSubmit.name}`, e)
         }
     }
-
+    const History = () => {
+        return (
+            <div>
+                {history.length === 0 ? <h1>Empty</h1> : 
+                history.map((msg) => {
+                    return <p>{`${msg.role}: ${msg.content}`}</p>
+                })
+                }
+            </div>
+        )
+    }
     return (
         <main>
             <form id="send" onSubmit={handleSubmit}>
@@ -126,11 +155,7 @@ const Home = () => {
                 <Button type='submit' variant="contained" >
                     <SendIcon />
                 </Button>
-                <div>
-                    {history == [] ? <h1>Empty</h1> : history.map((msg) => {
-                        return <p>{`${msg.role}: ${msg.content}`}</p>
-                    })}
-                </div>
+                <History />
             </form>
         </main>
     )

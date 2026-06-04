@@ -68,6 +68,9 @@ async def loadFile(filename:str) -> MessageList: #extracts db files into a class
                 for entry in res:
                     # print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
                     db.append({'role': entry[1], 'content': entry[2]})
+            cur.execute(f"select * from {filename}")
+            print(f"server.py loadFile() {filename}: ", cur.fetchall())
+            conn.commit()
         out = MessageList(memo=db)
         MessageList.model_validate(out)
         return out
@@ -84,20 +87,22 @@ async def saveFile(filename : str, data : MessageList) -> MessageList: #saves su
         path = HISTORY_PATH if filename == "history" else CHATLOG_PATH if filename == "chatlog" else None
         with sqlite3.connect(path) as conn:
             #print(type(data), data['list'])
-            print("Connected")
+            # print("Connected")
             cur = conn.cursor()
             if (filename == "history"):
                 cur.execute(f"delete from {filename}")
-            print("Inserting values from", data.memo)
+            # print("Inserting values from", data.memo)
             for entry in data.memo:
                 # print("saving to history: " + entry['role'] + " " + entry['content'])
-                print(entry)
+                # print(entry)
                 cur.execute(f"insert into {filename} values(null,?,?)", (entry.role, entry.content))
-            print("Dumped values")
+            # print("Dumped values")
+            cur.execute(f"select * from {filename}")
+            print(f"server.py saveFile() {filename}: ", cur.fetchall())
             conn.commit()
-        print("Testing Input Validation")
+        # print("Testing Input Validation")
         MessageList.model_validate(data)
-        print("success!")
+        # print("success!")
         return data
     except ValidationError as valerr:
         print(f"server.py saveFile(): {valerr}")
@@ -120,13 +125,13 @@ async def clearDBFiles():
 @app.post("/chat")
 async def chat(data: MessageList) -> MessageList:
     try:
-        print("Received data", data)
+        # print("Received data", data)
         MessageList.model_validate(data)
         reply_data = Base_LLM.chat(data) 
         if reply_data is None:
             raise HTTPException(status_code=404, detail="Server did not receive a response")
-        print("LLM reply:", reply_data)
-        MessageList.model_validate(data)
+        # print("LLM reply:", reply_data)
+        MessageList.model_validate(reply_data)
         return reply_data
     except ValidationError as err:
         print(f"server.py chat(): {err}")

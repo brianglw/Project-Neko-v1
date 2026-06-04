@@ -63,7 +63,7 @@ class Bot:
     
     def chat(self : "Bot", history : MessageList) -> MessageList:
         try: 
-            print("Validating history from API...")
+            print("Shoyu: ")
             MessageList.model_validate(history)
             complete_response = "" 
             if (len(history.memo) > MSG_LIMIT):
@@ -78,7 +78,7 @@ class Bot:
                 complete_response += content
                 print(content, end='', flush=True)
                 
-            complete_response = {"role": "assistant", "content": complete_response}
+            complete_response = Message(role= "assistant", content= complete_response)
             history.memo.append(complete_response)
             print(history)  
             MessageList.model_validate(history)
