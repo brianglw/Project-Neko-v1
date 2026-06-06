@@ -12,34 +12,33 @@ const Home = () => {
     const [doesSaving, setDoesSaving] = useState(false)
     const [doesLogging, setDoesLogging] = useState(false)
 
-
-    useEffect(()=> { //creates connection to an existing db, or creates new one if doesn't exist
-        const createNewDB = async() => {
-            await api.post("/new").then((response) => {
-                // console.log(response.data); // Parsed JSON object/array
-            })
-            .catch((error) => {
-                console.error(`Home.jsx ${createNewDB.name}`, error);
-            });
-        }
-        const handleLoadDB = async(filename) => {
-            await api.get(`/loadDB/${filename}`)
-            .then((response) => {
-                console.log(`Home.jsx ${handleLoadDB.name}`, response.data); // Parsed JSON object/array
-                setHistory(response.data['memo'])
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
-        }
-        if (doesLoading) {
+    const load = () => {
+        useEffect(()=> { //creates connection to an existing db, or creates new one if doesn't exist
+            const createNewDB = async() => {
+                await api.post("/new").then((response) => {
+                    // console.log(response.data); // Parsed JSON object/array
+                })
+                .catch((error) => {
+                    console.error(`Home.jsx ${createNewDB.name}`, error);
+                });
+            }
+            const handleLoadDB = async(filename) => {
+                await api.get(`/loadDB/${filename}`)
+                .then((response) => {
+                    console.log(`Home.jsx ${handleLoadDB.name}`, response.data); // Parsed JSON object/array
+                    setHistory(response.data['memo'])
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                });
+            }
             createNewDB()
             handleLoadDB("history")
-            setDoesLoading(false)
-        }
-    }, [])
+        }, [])
+    }
 
-    useEffect(()=> { //updates history (short-term) and chatlog DB each chat state changes
+    // useEffect(() => {
+        // updates history (short-term) and chatlog DB each chat state changes
         const handleDumpDB = async (data, filename) => {
             await api.post(`/dumpDB/${filename}`, {'memo': data})
             .then((response) => {
@@ -49,13 +48,16 @@ const Home = () => {
                 console.error(`Home.jsx ${handleDumpDB.name}`, error);
             });
         }
-        if (doesSaving) {
-            handleDumpDB(history, "history")
-            setDoesSaving
-        }
-    }, [history])
+    //     }
+    //     if (history.length > 0) {
+    //         handleDumpDB(history.slice(-2), "history")
+    //         // console.log("handleDumpDB success")
+    //     }
+    // }, [history])
+    
 
-    useEffect(()=> { //updates history (short-term) and chatlog DB each chat state changes
+    useEffect(() => {
+        //updates history (short-term) and chatlog DB each chat state changes
         const handleDumpDB = async (data, filename) => {
             await api.post(`/dumpDB/${filename}`, {'memo': data})
             .then((response) => {
@@ -65,25 +67,16 @@ const Home = () => {
                 console.error(`Home.jsx ${handleDumpDB.name}`, error);
             });
         }
-        if (doesLogging) {
-            if (chatLog.length === 0) {
-                handleDumpDB([], "chatlog")
-            } else {
-                console.log(`Home.jsx ${handleDumpDB.name} chatlog`, chatLog)
-                handleDumpDB(chatLog.slice(-2), "chatlog")
-            }
-            setDoesLogging(false)
+        if (chatLog.length > 0) {
+            handleDumpDB(chatLog.slice(-2), "chatlog")
         }
-        
     }, [chatLog])
 
     const handleReset = async () => { //clears DB records and empties chat state
         await api.post("/reset")
             .then((response) => {
                 console.log(`Home.jsx ${handleReset.name}`, response.data);
-                setDoesSaving(true)
                 setHistory([])
-                setDoesLogging(true)
                 setChatLog([]) 
             })
             .catch((error) => {
@@ -103,8 +96,12 @@ const Home = () => {
         await api.post("/chat", {'memo': [...history, formatted_msg]})
         .then((response) => {
             console.log(`Home.jsx ${handleChat.name}`, response.data)
-            setHistory(response.data['memo'])
-            setChatLog((prev) => ([...prev, response.data['memo'].at(-1)]))
+            if (response.data['memo'].length > 0) {
+                setHistory((prev) => (response.data['memo']))
+                setChatLog((prev) => ([...prev, response.data['memo'].at(-1)]))
+                handleDumpDB(response.data['memo'].slice(-2), "history")
+                // console.log("Home.jsx handleChat(): Files saved")
+            } 
             // console.log("History after reply", history)
             // console.log("Chatlog after reply", chatLog)
             // console.log("Fetching /chat API response", response.data); 
@@ -127,6 +124,7 @@ const Home = () => {
             console.log(`Home.jsx ${handleSubmit.name}`, e)
         }
     }
+
     const History = () => {
         return (
             <div>
@@ -138,6 +136,9 @@ const Home = () => {
             </div>
         )
     }
+
+    load()
+
     return (
         <main>
             <form id="send" onSubmit={handleSubmit}>

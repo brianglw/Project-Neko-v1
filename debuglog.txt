@@ -57,10 +57,9 @@ fastapi.exceptions.ResponseValidationError: 1 validation error:
 [Solution]
 
 
-[6/4/2026] [4:09 am] - Frontend
+[6/4/2026] [4:09 am] - Side effects in React
 
-[Details]   PydanticSerializationUnexpectedValue(Expected `Message` - serialized value may not be as expected [field_name='memo', input_value={'role': 'assistant', 'co...l people in real life."}, input_type=dict])
-  return self.serializer.to_json
+[Details] 
 [Cause]
 [What I did]
 [Solution]

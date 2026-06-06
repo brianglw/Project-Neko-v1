@@ -58,20 +58,23 @@ async def loadFile(filename:str) -> MessageList: #extracts db files into a class
     db = []
     out = {}
     try: 
+        # if (hasMsgLimit == False):
+        #     return MessageList(list=[])
         path = HISTORY_PATH if filename == "history" else CHATLOG_PATH if filename == "chatlog" else None
         with sqlite3.connect(path) as conn: 
             cur = conn.cursor()
             cur.execute(f"select count(*) from {filename}")
             numRows = cur.fetchone()[0]
             if (numRows > 0):
-                res = cur.execute(f"select * from {filename}")
+                res = cur.execute(f"select * from {filename} order by id desc limit {MSG_LIMIT}")
+
                 for entry in res:
                     # print("Printing History: " + str(entry[0]) + ": " + entry[1] + " " + entry[2])
                     db.append({'role': entry[1], 'content': entry[2]})
             cur.execute(f"select * from {filename}")
             print(f"server.py loadFile() {filename}: ", cur.fetchall())
             conn.commit()
-        out = MessageList(memo=db)
+        out = MessageList(memo=db[::-1])
         MessageList.model_validate(out)
         return out
     except ValidationError as valerr:
@@ -83,14 +86,14 @@ async def loadFile(filename:str) -> MessageList: #extracts db files into a class
 
 @app.post("/dumpDB/{filename}")
 async def saveFile(filename : str, data : MessageList) -> MessageList: #saves summarized history to history.db
-    try:
+    try:      
         path = HISTORY_PATH if filename == "history" else CHATLOG_PATH if filename == "chatlog" else None
         with sqlite3.connect(path) as conn:
             #print(type(data), data['list'])
-            # print("Connected")
+            # print("Connected") 
             cur = conn.cursor()
-            if (filename == "history"):
-                cur.execute(f"delete from {filename}")
+            # if (filename == "history"):
+                # cur.execute(f"delete from {filename}")
             # print("Inserting values from", data.memo)
             for entry in data.memo:
                 # print("saving to history: " + entry['role'] + " " + entry['content'])
