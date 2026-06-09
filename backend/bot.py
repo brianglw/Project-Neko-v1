@@ -56,7 +56,7 @@ class Bot:
         try:
             if len(history.memo) > msg_limit:
                 history.memo = history.memo[-(msg_limit):]
-            print("Trimmed history", history)
+            print("Trimmed history")
             return history
         except Exception as e:
             print(f"bot.py trim_history: {e}")

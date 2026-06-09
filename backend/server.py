@@ -1,5 +1,5 @@
-#run: .venv/Scripts/activate
-# python -m uvicorn server:app --reload
+# cd backend; .venv/Scripts/activate; python -m uvicorn server:app --reload
+# cd frontend; npm run dev
 try: #imports 
     import os
     import sqlite3
@@ -77,8 +77,6 @@ async def loadFile(filename:str) -> MessageList: #extracts db files into a class
         out = MessageList(memo=db[::-1])
         MessageList.model_validate(out)
         return out
-    except ValidationError as valerr:
-        print(f"server.py loadFile(): {valerr}")
     except Exception as e:            
         print(f"server.py loadFile(): {e}")
         return None
@@ -107,8 +105,6 @@ async def saveFile(filename : str, data : MessageList) -> MessageList: #saves su
         MessageList.model_validate(data)
         # print("success!")
         return data
-    except ValidationError as valerr:
-        print(f"server.py saveFile(): {valerr}")
     except Exception as e:
         print(f"server.py saveFile(): {e}")
         return None
@@ -136,8 +132,6 @@ async def chat(data: MessageList) -> MessageList:
         # print("LLM reply:", reply_data)
         MessageList.model_validate(reply_data)
         return reply_data
-    except ValidationError as err:
-        print(f"server.py chat(): {err}")
     except Exception as e:
         print(f"server.py chat(): {e}")
         return None

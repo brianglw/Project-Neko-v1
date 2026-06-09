@@ -44,22 +44,34 @@ fastapi.exceptions.ResponseValidationError: 1 validation error:
 {history == [] ? <h1>Empty</h1> : history.map((msg) => {
     return <p>{`${msg.role}: ${msg.content}`}</p>
 })}
-[Cause]
-[What I did]
-[Solution]
+[Cause] Accessing an undefined array or property of an array
+[What I did] history.length==0 
+[Solution] Use a ?? nullish coalesce operator like (history ?? []).map(...) or guard with a ?. optional chain operator
+
+[6/4/2026] [4:09 am] - Functions loading twice
+[Details] useEffect within Home.jsx called twice each reload, calling /dumpDB twice
+[Cause] Look up React Strict Render Mode, tl;dr, ReactDOM always re-renders each top-level component and all useEffects within it during each reload. /loadDB setHistory() -> useEffect(,[history]) 2x during render.
+[What I did] Change useEffect for handleDumpDB to a function called manually using response.data of api call to /chat as a parameter
+[Solution] 
 
 
-[6/4/2026] [10:09 am] - Frontend loads empty DB
+[6/8/2026] [5:02pm] - Home.jsx useContext error
+[Details]
+react-dom_client.js?v=5ce73a7e:14338 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+ChatContext.jsx:6 Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+resolveDispatcher @ react.js?v=5ce73a7e:297
+exports.useContext @ react.js?v=5ce73a7e:704
+(anonymous) @ ChatContext.jsx:6
+react.js?v=5ce73a7e:706 Uncaught TypeError: Cannot read properties of null (reading 'useContext')
+    at exports.useContext (react.js?v=5ce73a7e:706:22)
+    at ChatContext.jsx:6:31
+exports.useContext @ react.js?v=5ce73a7e:706
+(anonymous) @ ChatContext.jsx:6
 
-[Details] server.py loadFile() history:  []
-[Cause]
-[What I did]
-[Solution]
-
-
-[6/4/2026] [4:09 am] - Side effects in React
-
-[Details] 
-[Cause]
-[What I did]
-[Solution]
+[Cause] Hooks can only be called at top level body of a functional component, they are not variables
+[What I did] looked up Stack Overflow, transferred from npm to yarn, compared with a working example, changed from a var to a function call. Also, my state var history did not load after a call to the backend because I was not passing props into a required parameter into ChatMessages component, which stopped after I deleted it.
+[Solution] export const useChatContext = () => useContext(ChatContext)

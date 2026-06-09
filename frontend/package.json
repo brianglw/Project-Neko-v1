@@ -1,22 +1,26 @@
 {
   "name": "frontend",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "1.0.0",
+  "main": "index.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
+  "repository": "https://github.com/brianglw/Project-Neko-v1.git",
+  "author": "wyndslicer",
+  "license": "MIT",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^9.0.1",
-    "@mui/material": "^9.0.1",
-    "axios": "^1.16.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "@mui/icons-material": "^9.1.0",
+    "@mui/material": "^9.1.0",
+    "@mui/x-chat": "^9.0.0-alpha.8",
+    "axios": "^1.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
