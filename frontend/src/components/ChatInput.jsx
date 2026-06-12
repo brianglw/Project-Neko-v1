@@ -8,7 +8,7 @@ import {useChatContext} from '../contexts/ChatContext.jsx'
 const ChatInput = () => {
     const {handleSubmit, handleTextChange, handleKeyEvent, msg, handleClearChat} = useChatContext()
     return (
-        <form id="send" onSubmit={handleSubmit}>
+        <form id="chat-input" onSubmit={handleSubmit}>
             <TextField
                 fullWidth
                 id="filled-multiline-static"

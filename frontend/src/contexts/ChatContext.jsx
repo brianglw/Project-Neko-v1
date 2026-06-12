@@ -59,6 +59,7 @@ export const ChatProvider = ({children}) => {
         }
     }
 
+
     const handleClearChat = () => {
         setMsg("")        
     }
