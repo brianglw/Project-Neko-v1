@@ -13,3 +13,21 @@
             handleDumpDB(chatLog.slice(-2), "chatlog")
         }
     }, [chatLog])
+
+                await api.post("/chat", {'memo': [...history, formatted_msg]})
+            .then((response) => {
+                resp = response.data['memo']
+                // console.log(`Home.jsx`, response.data)
+                if (resp.length > 0) {
+                    setHistory((prev) => (resp))
+                    // console.log("sendMessage /chat history", resp)
+                    setChatLog((prev) => ([...prev, resp.at(-1)]))
+                    // handleDumpDB(response.data['memo'].slice(-2), "history")
+                    // handleDumpDB(response.data['memo'].slice(-2), "chatlog")
+                    // console.log("Home.jsx handleChat(): Files saved")
+                } 
+            })
+            .catch((error) => {
+                console.error(`Home.jsx ${handleChat.name}`, error);
+                setHasError(true)
+            })

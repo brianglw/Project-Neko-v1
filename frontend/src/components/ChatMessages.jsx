@@ -20,9 +20,9 @@ const ChatMessages = () => {
         const {history, isLoading} = useChatContext()
         console.log("ChatMessages.jsx", history)
 
-        const ChatMessage = ({role,content}) => {
+        const ChatMessage = ({id,role,content}) => {
             return (
-                <p>{`${role}: ${content}`}</p>
+                <p id={id}>{`${role}: ${content}`}</p>
             )
         }
 
@@ -33,7 +33,7 @@ const ChatMessages = () => {
         return (
             <div>
                 {(history ?? [])?.map((msg, index) => {
-                    return <ChatMessage key={index} role={msg.role} content={msg.content}></ChatMessage>
+                    return <ChatMessage key={msg.id} role={msg.role} content={msg.content}></ChatMessage>
                 })
                 }
                 {isLoading ? <LoadingMessage /> : ""}

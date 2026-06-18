@@ -1,77 +1,198 @@
 [Date] [Time] - Error Type
-[Details]
-[Cause]
-[What I did]
-[Solution]
+  [Details]
+  [Cause]
+  [What I did]
+  [Solution]
 
-5/23/2026 6:24am - EOF when reading a line
-[Detail] I loaded history.db into a history var, and user_input = input("You: ") produced an error.
-[Cause] launch.json "console": "internalConsole" meant for output & expressions, not input
-[What I did] Added try-except blocks + Escalated to CursorAI
-[Solution] Changed launch.json to "console": "integratedTerminal"
+[6/18/2026] [9:12 am] - Practice.jsx: adapter never waits for backend
+  [Details]
+    handleChat() is undefined
+  [Cause]
+  [What I did]
+    Make handleChat() async
+  [Solution]
 
-6/3/2026 8:32am - /dumpDB return None
-[Details] server.py saveFile(): 'Message' object is not subscriptable
-INFO:     127.0.0.1:65299 - "POST /dumpDB/history HTTP/1.1" 500 Internal Server Error
-[Cause] Accessing class instance properties with object syntax
-[What I did] Prior steps: I created a Message, MessageList BaseModel subclass to store chat messages in a list, validated by Pydantic, which changed data validation type from dict[str, list[str,str]] to MessageList class. Used console loop before looping over entry['data'] and discovered access to a class with object notation is incompatible.
-[Solution] Use 'model.member' member operator instead of model['member'] to access a class property. 
+[6/18/2026] [9:12 am] - Backend errors mistaken as frontend
+  [Details]
+    server.py: returning None from typed endpoints causes 500s
+  [Cause]
+        return None in Exception catching block violates promise to return MessageList (Pydantic),
+        but returns None, causing FastAPI to raise a response validation error but the return response
+        replaced with None, so it makes backend failures feel like frontend failures.
+  [What I did]
+        replaced return None with return MessageList[memo=[]] (con: makes errors look like they "work"
+        by returning at the HTTP level without an assistant reply), raise an error at the Exception level instead
+  [Solution]
+        Do not return “empty valid data” for a failed operation.
 
+        Think of backend responses as contracts:
+
+        200 OK means “the operation succeeded”
+        4xx means “the client sent something wrong”
+        5xx means “the server failed while trying”
+        an empty list should mean “successfully found nothing,” not “something crashed”
+        For chat specifically:
+
+        /chat success = user message was accepted, model replied, response contains messages
+        /chat failure = no assistant reply should be trusted
+
+[6/18/2026] [9:12 am] - message-shape mismatch
+  [Details]
+    FastAPI 422 Unprocessable Entity
+  [Cause]
+    Mismatch between {'role': 'user', 'content': '...'} format /chat backend sends
+    and MUI X Chat messages.
+  [What I did]
+  [Solution]
+
+[6/18/2026] [9:12 am] - ChatContext.jsx: /chat payload is invalid
+  [Details]
+    const formatted_msg = {'role': 'user', 'content': message.parts[0]['text']} needs more payload
+  [Cause]
+    print("Received data", data) not activating because payload fails validation
+  [What I did]
+  [Solution]
+
+[6/18/2026] [9:12 am] - server.py: saving can fail on duplicate IDs
+  [Details]
+    for entry in data.memo:
+        print(entry)
+        part = entry.parts[0]
+        cur.execute(
+            f"""insert into {filename} (
+                id, conversationId, role, status, createdAt,
+                author_id, author_displayName, author_avatarUrl, author_isOnline, author_role,
+                parts_type, parts_text
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        )
+    “the model answered, but the frontend still failed.”
+  [Cause]
+    Saving an ID to tell the next number
+  [What I did]
+  [Solution]
+
+[6/18/2026] [9:12 am] - bot.py: assistant message ID should be a string
+  [Details]
+    React MUI X saves its message ID as 'starter-msg-1', but you treat it like an int
+  [Cause]
+  [What I did]
+      l_id, r_id = history.memo[-1].id.rsplit("-")
+      _id = l_id + "-" + str(int(r_id) + 1)
+  [Solution]
+
+[6/18/2026] [9:12 am] - handleChat() does not return the response to Practice.jsx
+  [Details]
+  [Cause]
+    handleChat() updates state, but it does not return response.data
+  [What I did]
+  [Solution]
+
+[6/16/2026] [Time] - Discord Server Updating
+  [Details]
+    unknown command: challenge
+  [Cause]
+    discord server did not update
+  [What I did]
+    removed extra code, reinvited bot to server, reset installation
+  [Solution]
+    running yarn run start after changes
+
+[6/15/2026] [Time] - map()
+  [Details]
+    Uncaught TypeError: Cannot read properties of undefined (reading 'id')
+  [Cause]
+    Not returning createTextMessage() within map()
+  [What I did]
+    Assigned map to a const variable (resp.map(msg => ...) -> const texts = resp.map(msg => ...)), added ?. optional chaining operators, log during map iteration and after.
+  [Solution]
+    return statement
+
+[6/8/2026] [5:02 pm] - Home.jsx useContext error
+  [Details]
+    react-dom_client.js?v=5ce73a7e:14338 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+    ChatContext.jsx:6 Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+    1. You might have mismatching versions of React and the renderer (such as React DOM)
+    2. You might be breaking the Rules of Hooks
+    3. You might have more than one copy of React in the same app
+    See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+    resolveDispatcher @ react.js?v=5ce73a7e:297
+    exports.useContext @ react.js?v=5ce73a7e:704
+    (anonymous) @ ChatContext.jsx:6
+    react.js?v=5ce73a7e:706 Uncaught TypeError: Cannot read properties of null (reading 'useContext')
+        at exports.useContext (react.js?v=5ce73a7e:706:22)
+        at ChatContext.jsx:6:31
+    exports.useContext @ react.js?v=5ce73a7e:706
+    (anonymous) @ ChatContext.jsx:6
+  [Cause]
+    Hooks can only be called at top level body of a functional component, they are not variables
+  [What I did]
+    looked up Stack Overflow, transferred from npm to yarn, compared with a working example, changed from a var to a function call. Also, my state var history did not load after a call to the backend because I was not passing props into a required parameter into ChatMessages component, which stopped after I deleted it.
+  [Solution]
+    export const useChatContext = () => useContext(ChatContext)
 
 [6/4/2026] [4:09 am] - 127.0.0.1:55866 - "POST /chat HTTP/1.1" 500 Internal Server Error
-
-[Details] ERROR:    Exception in ASGI application
-Access to XMLHttpRequest at 'http://localhost:8000/chat' from origin 'http://localhost:5173' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. Error: AxiosError: Network
-bot.py chat: [WinError 10061] No connection could be made because the target machine actively refused it
-server.py chat(): 404: Server did not receive a response
-fastapi.exceptions.ResponseValidationError: 1 validation error:
-  {'type': 'model_attributes_type', 'loc': ('response',), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': None}
-[Cause] ollama not running locally
-[What I did] googled CORS Middleware, adjusted origins, checked pydantic model validation, check ollama serve
-[Solution] ollama serve in cmd
-
+  [Details]
+    ERROR:    Exception in ASGI application
+    Access to XMLHttpRequest at 'http://localhost:8000/chat' from origin 'http://localhost:5173' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. Error: AxiosError: Network
+    bot.py chat: [WinError 10061] No connection could be made because the target machine actively refused it
+    server.py chat(): 404: Server did not receive a response
+    fastapi.exceptions.ResponseValidationError: 1 validation error:
+      {'type': 'model_attributes_type', 'loc': ('response',), 'msg': 'Input should be a valid dictionary or object to extract fields from', 'input': None}
+  [Cause]
+    ollama not running locally
+  [What I did]
+    googled CORS Middleware, adjusted origins, checked pydantic model validation, check ollama serve
+  [Solution]
+    ollama serve in cmd
 
 [6/4/2026] [4:09 am] - Frontend sending incorrect data
-
-[Details] POST http://localhost:8000/dumpDB/chatlog 422 (Unprocessable Entity) Error: AxiosError: Request failed with status code 422
-[Cause] Not understanding how a spread operator is used. Using spread operator not within another list produces Uncaught SyntaxError: Unexpected token '...' Also, accessing an empty list with .at(-1) produces 422. Use an if else block to manage. 
-[Solution] setHistory(...response.data['memo']) -> setHistory(response.data['memo']). if length of chatLog is empty, use [] for callback, if length !== 0, use chatLog. 
-
+  [Details]
+    POST http://localhost:8000/dumpDB/chatlog 422 (Unprocessable Entity) Error: AxiosError: Request failed with status code 422
+  [Cause]
+    Not understanding how a spread operator is used. Using spread operator not within another list produces Uncaught SyntaxError: Unexpected token '...' Also, accessing an empty list with .at(-1) produces 422. Use an if else block to manage.
+  [What I did]
+  [Solution]
+    setHistory(...response.data['memo']) -> setHistory(response.data['memo']). if length of chatLog is empty, use [] for callback, if length !== 0, use chatLog.
 
 [6/4/2026] [4:09 am] - Frontend
-
-[Details] Uncaught TypeError: history.map is not a function
-{history == [] ? <h1>Empty</h1> : history.map((msg) => {
-    return <p>{`${msg.role}: ${msg.content}`}</p>
-})}
-[Cause] Accessing an undefined array or property of an array
-[What I did] history.length==0 
-[Solution] Use a ?? nullish coalesce operator like (history ?? []).map(...) or guard with a ?. optional chain operator
+  [Details]
+    Uncaught TypeError: history.map is not a function
+    {history == [] ? <h1>Empty</h1> : history.map((msg) => {
+        return <p>{`${msg.role}: ${msg.content}`}</p>
+    })}
+  [Cause]
+    Accessing an undefined array or property of an array
+  [What I did]
+    history.length==0
+  [Solution]
+    Use a ?? nullish coalesce operator like (history ?? []).map(...) or guard with a ?. optional chain operator
 
 [6/4/2026] [4:09 am] - Functions loading twice
-[Details] useEffect within Home.jsx called twice each reload, calling /dumpDB twice
-[Cause] Look up React Strict Render Mode, tl;dr, ReactDOM always re-renders each top-level component and all useEffects within it during each reload. /loadDB setHistory() -> useEffect(,[history]) 2x during render.
-[What I did] Change useEffect for handleDumpDB to a function called manually using response.data of api call to /chat as a parameter
-[Solution] 
+  [Details]
+    useEffect within Home.jsx called twice each reload, calling /dumpDB twice
+  [Cause]
+    Look up React Strict Render Mode, tl;dr, ReactDOM always re-renders each top-level component and all useEffects within it during each reload. /loadDB setHistory() -> useEffect(,[history]) 2x during render.
+  [What I did]
+    Change useEffect for handleDumpDB to a function called manually using response.data of api call to /chat as a parameter
+  [Solution]
 
+[6/3/2026] [8:32 am] - /dumpDB return None
+  [Details]
+    server.py saveFile(): 'Message' object is not subscriptable
+    INFO:     127.0.0.1:65299 - "POST /dumpDB/history HTTP/1.1" 500 Internal Server Error
+  [Cause]
+    Accessing class instance properties with object syntax
+  [What I did]
+    Prior steps: I created a Message, MessageList BaseModel subclass to store chat messages in a list, validated by Pydantic, which changed data validation type from dict[str, list[str,str]] to MessageList class. Used console loop before looping over entry['data'] and discovered access to a class with object notation is incompatible.
+  [Solution]
+    Use 'model.member' member operator instead of model['member'] to access a class property.
 
-[6/8/2026] [5:02pm] - Home.jsx useContext error
-[Details]
-react-dom_client.js?v=5ce73a7e:14338 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
-ChatContext.jsx:6 Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
-1. You might have mismatching versions of React and the renderer (such as React DOM)
-2. You might be breaking the Rules of Hooks
-3. You might have more than one copy of React in the same app
-See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
-resolveDispatcher @ react.js?v=5ce73a7e:297
-exports.useContext @ react.js?v=5ce73a7e:704
-(anonymous) @ ChatContext.jsx:6
-react.js?v=5ce73a7e:706 Uncaught TypeError: Cannot read properties of null (reading 'useContext')
-    at exports.useContext (react.js?v=5ce73a7e:706:22)
-    at ChatContext.jsx:6:31
-exports.useContext @ react.js?v=5ce73a7e:706
-(anonymous) @ ChatContext.jsx:6
-
-[Cause] Hooks can only be called at top level body of a functional component, they are not variables
-[What I did] looked up Stack Overflow, transferred from npm to yarn, compared with a working example, changed from a var to a function call. Also, my state var history did not load after a call to the backend because I was not passing props into a required parameter into ChatMessages component, which stopped after I deleted it.
-[Solution] export const useChatContext = () => useContext(ChatContext)
+[5/23/2026] [6:24 am] - EOF when reading a line
+  [Details]
+    I loaded history.db into a history var, and user_input = input("You: ") produced an error.
+  [Cause]
+    launch.json "console": "internalConsole" meant for output & expressions, not input
+  [What I did]
+    Added try-except blocks + Escalated to CursorAI
+  [Solution]
+    Changed launch.json to "console": "integratedTerminal"

@@ -1,53 +1,40 @@
-import {useState} from 'react'
 import { ChatBox } from '@mui/x-chat';
-import api from '../services/api.js'
 import {useChatContext} from '../contexts/ChatContext.jsx'
 
-
-
 const Practice = () => {
-    const {history, handleSubmit, handleTextChange, handleKeyEvent, msg, setMsg, handleClearChat, setHistory, setChatLog} = useChatContext()
+    const {history, handleChat, setHistory} = useChatContext()
 
+    const handleMessagesChange = (messages) => {
+        const lastMessage = messages?.at(-1)
+        // #region agent log
+        fetch('http://127.0.0.1:7370/ingest/e731b92c-5972-4901-90c1-5422fcbe8775',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9db512'},body:JSON.stringify({sessionId:'9db512',runId:'initial',hypothesisId:'H6,H7',location:'frontend/src/pages/Practice.jsx:8',message:'mui messages changed',data:{messageCount:messages?.length ?? 0,lastKeys:lastMessage ? Object.keys(lastMessage) : [],lastRole:lastMessage?.role,lastStatus:lastMessage?.status,lastPartTypes:lastMessage?.parts?.map((part)=>part.type),hasAuthor:Boolean(lastMessage?.author),hasCreatedAt:Boolean(lastMessage?.createdAt),hasConversationId:Boolean(lastMessage?.conversationId)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        setHistory(messages)
+    }
 
     const adapter = {
-        // const res = await fetch('/api/chat', {
-        //     method: 'POST',
-        //     body: JSON.stringify({ message }),
-        //     signal,
-        // });
-        // return res.body; // ReadableStream<ChatMessageChunk>
-        async sendMessage({ message, signal }) {
-            let resp
-            console.log("sendMessage adapter message", message)
-            console.log("sendMessage adapter signal", signal)
-            const formatted_msg = {'role': message['role'], 'content': message['parts'][0]['text']}
-            console.log("formatted msg before api /chat", formatted_msg)
+        async sendMessage({ message }) {
+            console.log("Practice message", message)
+            console.log("Practice history in sendMessage at start of call", history)
 
-            await api.post("/chat", {'memo': [...history, formatted_msg]})
-            .then((response) => {
-               resp = response.data['memo']
-                console.log(`Home.jsx`, response.data)
-                if (resp.length > 0) {
-                    setHistory((prev) => (resp))
-                    console.log("sendMessage /chat history", resp)
-                    setChatLog((prev) => ([...prev, resp.at(-1)]))
-                    // handleDumpDB(response.data['memo'].slice(-2), "history")
-                    // handleDumpDB(response.data['memo'].slice(-2), "chatlog")
-                    // console.log("Home.jsx handleChat(): Files saved")
-                } 
-            })
-            .catch((error) => {
-                console.error(`Home.jsx ${handleChat.name}`, error);
-            })
+            const msgs = await handleChat(message)
+            const replyMessage = msgs?.memo?.at(-1)
+            const reply = replyMessage?.parts?.find((part) => part.type === 'text')?.text
 
-            console.log("sendMessage returning data")
+            if (!replyMessage?.id || reply == null) {
+                throw new Error('Chat generation failed')
+            }
+
+            const messageId = replyMessage.id
+            const textId = `${messageId}-text`
+
             return new ReadableStream({
                 start(controller) {
-                    controller.enqueue({ type: 'start', messageId: 'msg-1' });
-                    controller.enqueue({ type: 'text-start', id: 'text-1' });
-                    controller.enqueue({ type: 'text-delta', id: 'text-1', delta: resp?.at(-1)['content'] });
-                    controller.enqueue({ type: 'text-end', id: 'text-1' });
-                    controller.enqueue({ type: 'finish', messageId: 'msg-1' });
+                    controller.enqueue({ type: 'start', messageId });
+                    controller.enqueue({ type: 'text-start', id: textId });
+                    controller.enqueue({ type: 'text-delta', id: textId, delta: reply });
+                    controller.enqueue({ type: 'text-end', id: textId });
+                    controller.enqueue({ type: 'finish', messageId });
                     controller.close()
                 }
             })
@@ -56,7 +43,8 @@ const Practice = () => {
     return (
         <ChatBox
             adapter={adapter}
-            initialMessages={history}
+            messages={history}
+            onMessagesChange={handleMessagesChange}
             sx={{ height: 500 }}
         />
     );
