@@ -7,7 +7,7 @@ import {useChatContext} from '../contexts/ChatContext.jsx'
 import shoyuAvatarUrl from '../assets/shoyu_neutral2.jpg'
 
 const Chatbox = () => {
-    const {history, handleChat, setHistory} = useChatContext()
+    const {history, streamChat, setHistory} = useChatContext()
     const [isWaitingForReply, setIsWaitingForReply] = useState(false)
 
     const handleMessagesChange = (messages) => {
@@ -20,45 +20,43 @@ const Chatbox = () => {
             console.log("Chatbox history in sendMessage at start of call", history)
 
             setIsWaitingForReply(true)
-            const msgs = await handleChat(message).finally(() => {
+            let chunkStream
+            try {
+                chunkStream = await streamChat(message)
+            } catch (error) {
                 setIsWaitingForReply(false)
-            })
-            const replyMessage = msgs?.memo?.at(-1)
-            const reply = replyMessage?.parts?.find((part) => part.type === 'text')?.text
-
-            if (!replyMessage?.id || reply == null) {
-                throw new Error('Chat generation failed')
+                throw error
             }
 
-            const messageId = replyMessage.id
-            const textId = `${messageId}-text`
-
-            return new ReadableStream({
-                start(controller) {
-                    controller.enqueue({ type: 'start', messageId });
-                    controller.enqueue({ type: 'text-start', id: textId });
-                    controller.enqueue({ type: 'text-delta', id: textId, delta: reply });
-                    controller.enqueue({ type: 'text-end', id: textId });
-                    controller.enqueue({ type: 'finish', messageId });
-                    controller.close()
-                }
+            const clearBadge = new TransformStream({
+                transform(chunk, controller) {
+                    if (chunk?.type === 'text-delta') {
+                        setIsWaitingForReply(false)
+                    }
+                    controller.enqueue(chunk)
+                },
+                flush() {
+                    setIsWaitingForReply(false)
+                },
             })
+
+            return chunkStream.pipeThrough(clearBadge)
         }
     }
     return (
         <Box sx={{ position: 'relative' }}>
-            <ChatBox
-                adapter={adapter}
-                messages={history}
-                onMessagesChange={handleMessagesChange}
-                sx={{ height: 750 }}
-            />
             {isWaitingForReply ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                     <Avatar src={shoyuAvatarUrl} alt="Shoyu" sx={{ width: 32, height: 32 }} />
                     <Chip label="..." color="info" size="small" />
                 </Box>
             ) : null}
+            <ChatBox
+                adapter={adapter}
+                messages={history}
+                onMessagesChange={handleMessagesChange}
+                sx={{ height: 750 }}
+            />
         </Box>
     );
 }

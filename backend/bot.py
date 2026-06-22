@@ -65,6 +65,16 @@ class Bot:
                 messages.append({"role": msg.role, "content": text_part.text})
         return messages
 
+    def stream_tokens(self : "Bot", history : MessageList):
+        MessageList.model_validate(history)
+        if len(history.memo) > MSG_LIMIT:
+            history = self.trim_history(history, MSG_LIMIT)
+        ollama_messages = self.format_ollama_messages(history)
+        if not ollama_messages:
+            raise HTTPException(status_code=400, detail="No text message to send")
+        for chunk in self.client.chat(model=self.model, messages=ollama_messages, stream=True):
+            yield chunk['message']['content']
+
     def build_reply(self : "Bot", history : MessageList, text : str) -> Message:
         return Message(
             id=f"assistant-{uuid.uuid4()}",

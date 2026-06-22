@@ -3,4 +3,12 @@ db/
 .vscode/
 __pycache__/
 backend/test.py
+backend/extra.txt
 discord-example-app/
+
+# Files unrelated to the frontend/backend chatbox app
+backend/discord-bot/
+backend/shell_main.py
+debuglog.txt
+debug-*.log
+user_input.wav

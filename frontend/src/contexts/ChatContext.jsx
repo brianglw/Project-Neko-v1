@@ -137,6 +137,44 @@ export const ChatProvider = ({children}) => {
         return messages.map((message) => normalizeChatMessage(message))
     }
 
+    function splitNdjsonToChunks() {
+        let buffer = ''
+        return new TransformStream({
+            transform(textChunk, controller) {
+                buffer += textChunk
+                let newlineIndex
+                while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+                    const line = buffer.slice(0, newlineIndex).trim()
+                    buffer = buffer.slice(newlineIndex + 1)
+                    if (line) {
+                        controller.enqueue(JSON.parse(line))
+                    }
+                }
+            },
+            flush(controller) {
+                const line = buffer.trim()
+                if (line) {
+                    controller.enqueue(JSON.parse(line))
+                }
+            },
+        })
+    }
+
+    const streamChat = async (message) => {
+        const payload = { memo: [...normalizeChatHistory(history), normalizeChatMessage(message)] }
+        const res = await fetch(`${api.defaults.baseURL}/chat/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+        if (!res.ok || !res.body) {
+            throw new Error('Chat generation failed')
+        }
+        return res.body
+            .pipeThrough(new TextDecoderStream())
+            .pipeThrough(splitNdjsonToChunks())
+    }
+
     const handleDumpDB = async (data, filename) => {
         await api.post(`/dumpDB/${filename}`, {'memo': data})
         .then((response) => {
@@ -231,6 +269,7 @@ export const ChatProvider = ({children}) => {
         createTextMessage,
         handleDumpDB,
         handleChat,
+        streamChat,
     }
     return <ChatContext.Provider value={props}>
         {children}

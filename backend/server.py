@@ -5,11 +5,12 @@ try: #imports
     import os
     import sqlite3
     import time
+    import uuid
     from dotenv import load_dotenv
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.exceptions import RequestValidationError
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import JSONResponse, StreamingResponse
     import uvicorn
     from bot import Base_LLM, Author, Message, MessageList, Part
 except KeyboardInterrupt as e:
@@ -68,9 +69,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     body = await request.json()
     memo = body.get("memo") if isinstance(body, dict) else None
     last_message = memo[-1] if isinstance(memo, list) and memo else None
-    #region agent log
-    _agent_log("H6,H7,H8,H9", "backend/server.py:68", "request validation failed before route", {"path": request.url.path, "errors": exc.errors(), "bodyType": type(body).__name__, "memoLength": len(memo) if isinstance(memo, list) else None, "lastMessageKeys": list(last_message.keys()) if isinstance(last_message, dict) else None, "lastRole": last_message.get("role") if isinstance(last_message, dict) else None, "lastPartTypes": [part.get("type") for part in last_message.get("parts", [])] if isinstance(last_message, dict) and isinstance(last_message.get("parts"), list) else None})
-    #endregion
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 
@@ -253,6 +251,35 @@ async def chat(data: MessageList) -> MessageList:
     except Exception as e:
         print(f"server.py chat(): {e}")
         raise HTTPException(status_code=500, detail="Chat generation failed")
+
+
+@app.post("/chat/stream")
+async def chat_stream(data: MessageList):
+    MessageList.model_validate(data)
+    message_id = f"assistant-{uuid.uuid4()}"
+    text_id = f"{message_id}-text"
+
+    def generate():
+        complete_response = ""
+        try:
+            yield json.dumps({"type": "start", "messageId": message_id}) + "\n"
+            yield json.dumps({"type": "text-start", "id": text_id}) + "\n"
+            for token in Base_LLM.stream_tokens(data):
+                if not token:
+                    continue
+                complete_response += token
+                yield json.dumps({"type": "text-delta", "id": text_id, "delta": token}) + "\n"
+            yield json.dumps({"type": "text-end", "id": text_id}) + "\n"
+            yield json.dumps({"type": "finish", "messageId": message_id}) + "\n"
+
+            reply = Base_LLM.build_reply(data, complete_response)
+            reply.id = message_id
+            _save_messages_("history", [data.memo[-1], reply])
+        except Exception as e:
+            print(f"server.py chat_stream(): {e}")
+            yield json.dumps({"type": "abort", "messageId": message_id}) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 if __name__ == "__main__": 
