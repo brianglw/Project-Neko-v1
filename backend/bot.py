@@ -3,9 +3,7 @@ from ollama import Client
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from fastapi import HTTPException
-import json
 import os
-import time
 import uuid
 
 load_dotenv()
@@ -14,7 +12,7 @@ OLLAMA_HOST = os.getenv('OLLAMA_HOST') or os.getenv('PORT') or 'http://localhost
 #LIMIT VARS
 WORD_LIMIT = 120
 SUMMARY_WORD_LIMIT=500
-MSG_LIMIT=8
+MSG_LIMIT=14
 SILENCE_TIMEOUT = 3.0
 MIC_THRESHOLD = 500
 
@@ -41,12 +39,6 @@ class Message(BaseModel):
 class MessageList(BaseModel):
     memo: list[Message]
 
-#region agent log
-def _agent_log(hypothesis_id: str, location: str, message: str, data: dict):
-    with open("C:/Python/project_nekomimi/debug-9db512.log", "a", encoding="utf-8") as file:
-        file.write(json.dumps({"sessionId": "9db512", "runId": "initial", "hypothesisId": hypothesis_id, "location": location, "message": message, "data": data, "timestamp": int(time.time() * 1000)}) + "\n")
-#endregion
-
 class Bot: 
     def __init__(self : "Bot", model : str, assistant_model : str):
         self.model : str = model
@@ -72,7 +64,24 @@ class Bot:
             if text_part is not None and text_part.text.strip():
                 messages.append({"role": msg.role, "content": text_part.text})
         return messages
-    
+
+    def build_reply(self : "Bot", history : MessageList, text : str) -> Message:
+        return Message(
+            id=f"assistant-{uuid.uuid4()}",
+            conversationId=history.memo[-1].conversationId,
+            role="assistant",
+            status="sent",
+            createdAt=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+            author=Author(
+                id="agent",
+                displayName="Shoyu",
+                avatarUrl="assets/shoyu_neutral2.jpg",
+                isOnline=True,
+                role="assistant"
+            ),
+            parts=[Part(type="text", text=text)]
+        )
+
     def chat(self : "Bot", history : MessageList) -> MessageList:
         try: 
             MessageList.model_validate(history)
@@ -82,9 +91,6 @@ class Bot:
                     history = self.trim_history(history,MSG_LIMIT)
 
                 ollama_messages = self.format_ollama_messages(history)
-                #region agent log
-                _agent_log("H3,H4", "backend/bot.py:91", "prepared ollama request", {"host": OLLAMA_HOST, "model": self.model, "formattedType": type(ollama_messages).__name__, "messageCount": len(ollama_messages), "roles": [msg.get("role") for msg in ollama_messages]})
-                #endregion
                 if not ollama_messages:
                     raise HTTPException(status_code=400, detail="No text message to send")
 
@@ -95,27 +101,10 @@ class Bot:
                 )
                 print("Shoyu: ")
                 for chunk in response:
-                    #region agent log
-                    _agent_log("H5", "backend/bot.py:102", "received ollama stream chunk", {"chunkType": type(chunk).__name__, "topLevelKeys": list(chunk.keys()) if isinstance(chunk, dict) else None, "messageKeys": list(chunk.get("message", {}).keys()) if isinstance(chunk, dict) and isinstance(chunk.get("message"), dict) else None})
-                    #endregion
                     content = chunk['message']['content']
                     complete_response += content
                     print(content, end='', flush=True)
-                reply = Message(
-                    id=f"assistant-{uuid.uuid4()}",
-                    conversationId=history.memo[-1].conversationId,
-                    role="assistant",
-                    status="sent",
-                    createdAt=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-                    author=Author(
-                        id="agent",
-                        displayName="Shoyu",
-                        avatarUrl="assets/shoyu_neutral2.jpg",
-                        isOnline=True,
-                        role="assistant"
-                    ),
-                    parts=[Part(type="text", text=complete_response)]
-                )
+                reply = self.build_reply(history, complete_response)
                 history.memo.append(reply)
                 print("bot.py chat()", history)
                 MessageList.model_validate(history)
@@ -126,9 +115,6 @@ class Bot:
             raise
         except Exception as e:
             print(f"bot.py chat: {e}")
-            #region agent log
-            _agent_log("H3,H4,H5", "backend/bot.py:130", "bot chat raised exception", {"exceptionType": type(e).__name__, "exceptionMessage": str(e)})
-            #endregion
             raise HTTPException(status_code=502, detail="Chat generation failed")
 
-Base_LLM = Bot( "shoyu_v1", "shoyu_stm")
+Base_LLM = Bot( "shoyu_v1.03", "llama3.2")

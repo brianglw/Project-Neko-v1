@@ -1,6 +1,7 @@
 import {useState, useEffect, createContext, useContext} from 'react'
 import api from '../services/api.js'
 import shoyuAvatarUrl from '../assets/shoyu_neutral2.jpg'
+import capyAvatarUrl from '../assets/capybara.png'
 
 const ChatContext = createContext()
 
@@ -9,7 +10,6 @@ export const useChatContext = () => useContext(ChatContext)
 export const ChatProvider = ({children}) => {
     const [msg, setMsg] = useState("")
     const [history, setHistory] = useState([])
-    const [, setChatLog] = useState([])
     const conversationId = 'conv-practice'
     // const [isLoading, setIsLoading] = useState(false)
 
@@ -61,7 +61,7 @@ export const ChatProvider = ({children}) => {
     }, [])
 
     function createAvatarDataUrl(label, background, foreground = '#ffffff') {
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+        const svg = `<svg width="96" height="96" viewBox="0 0 96 96">
         <rect rx="24" fill="${background}"/>
         <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="600" fill="${foreground}">
         ${label}
@@ -75,7 +75,7 @@ export const ChatProvider = ({children}) => {
         you: {
             id: '06',
             displayName: 'You',
-            avatarUrl: createAvatarDataUrl('B', '#1976d2'),
+            avatarUrl: capyAvatarUrl,
             isOnline: true,
             role: 'user',
         },
@@ -189,16 +189,12 @@ export const ChatProvider = ({children}) => {
         console.log('chat() texts', payload)
         // setMsg("")
         // console.log("Chatting with current history...", history)
-        // #region agent log
-        fetch('http://127.0.0.1:7370/ingest/e731b92c-5972-4901-90c1-5422fcbe8775',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9db512'},body:JSON.stringify({sessionId:'9db512',runId:'initial',hypothesisId:'H1,H6,H7',location:'frontend/src/contexts/ChatContext.jsx:179',message:'posting chat payload summary',data:{historyLength:history.length,payloadLength:payload.memo.length,missingConversationIds:payload.memo.filter((msg)=>!msg.conversationId).length,lastRole:formatted_msg.role,lastPartTypes:formatted_msg.parts?.map((part)=>part.type),hasAuthor:Boolean(formatted_msg.author),hasConversationId:Boolean(formatted_msg.conversationId),textLength:formatted_msg.parts?.find((part)=>part.type==='text')?.text?.length ?? 0},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         await api.post("/chat", payload)
         .then(async (response) => {
             console.log(`Home.jsx ${handleChat.name}`, response.data)
             if (response.data?.memo?.length > 0) {
                 hist = response.data
                 // setHistory((prev) => (response.data['memo']))
-                setChatLog((prev) => ([...prev, response.data['memo'].at(-1)]))
                 await Promise.all([
                     handleDumpDB(response.data['memo'].slice(-2), "history"),
                     handleDumpDB(response.data['memo'].slice(-2), "chatlog"),
@@ -208,9 +204,6 @@ export const ChatProvider = ({children}) => {
         })
         .catch((error) => {
             console.error(`Home.jsx ${handleChat.name}`, error);
-            // #region agent log
-            fetch('http://127.0.0.1:7370/ingest/e731b92c-5972-4901-90c1-5422fcbe8775',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9db512'},body:JSON.stringify({sessionId:'9db512',runId:'initial',hypothesisId:'H2,H3,H4,H5',location:'frontend/src/contexts/ChatContext.jsx:199',message:'chat request failed in browser',data:{status:error?.response?.status,detail:error?.response?.data?.detail,message:error?.message},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             throw error
         });
         return hist
@@ -234,7 +227,6 @@ export const ChatProvider = ({children}) => {
         setMsg,
         history,
         setHistory,
-        setChatLog,
         createAvatarDataUrl,
         createTextMessage,
         handleDumpDB,

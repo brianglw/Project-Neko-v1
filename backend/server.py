@@ -26,11 +26,10 @@ HF_TOKEN = os.getenv('HF_TOKEN')
 #PATHS
 PATH="C:/Python/project_nekomimi/backend" 
 HISTORY_PATH = f"{PATH}/db/history.db"
-CHATLOG_PATH = f"{PATH}/db/chatlog.db"
+# CHATLOG_PATH = f"{PATH}/db/chatlog.db"
 PORT = os.getenv('PORT')
 DB_PATHS = {
-    "history": HISTORY_PATH,
-    "chatlog": CHATLOG_PATH,
+    "history": HISTORY_PATH
 }
 
 #LIMIT VARS
@@ -123,6 +122,38 @@ def _createtables_(filename:str, path:str):
     except Exception as e:
         print(f"server.py _createtables_(): {e}")
 
+def _save_messages_(filename: str, messages: list[Message]):
+    path = _get_db_path_(filename)
+    with sqlite3.connect(path) as conn:
+        cur = conn.cursor()
+        for entry in messages:
+            part = entry.parts[0]
+            cur.execute(
+                f"""insert or replace into {filename} (
+                    id, conversationId, role, status, createdAt,
+                    author_id, author_displayName, author_avatarUrl, author_isOnline, author_role,
+                    parts_type, parts_text
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    entry.id,
+                    entry.conversationId,
+                    entry.role,
+                    entry.status,
+                    entry.createdAt,
+                    entry.author.id,
+                    entry.author.displayName,
+                    entry.author.avatarUrl,
+                    int(entry.author.isOnline),
+                    entry.author.role,
+                    part.type,
+                    part.text,
+                ),
+            )
+        cur.execute(f"select * from {filename}")
+        print(f"server.py _save_messages_() {filename}: ", cur.fetchall())
+        conn.commit()
+
+
 def _cleartable_(path:str, filename:str):
     try:
         with sqlite3.connect(f"{path}") as conn:
@@ -183,45 +214,8 @@ async def loadFile(filename:str) -> MessageList: #extracts db files into a class
 @app.post("/dumpDB/{filename}")
 async def saveFile(filename : str, data : MessageList) -> MessageList: #saves summarized history to history.db
     try:      
-        path = _get_db_path_(filename)
-        with sqlite3.connect(path) as conn:
-            #print(type(data), data['list'])
-            # print("Connected") 
-            cur = conn.cursor()
-            # if (filename == "history"):
-                # cur.execute(f"delete from {filename}")
-            # print("Inserting values from", data.memo)
-            for entry in data.memo:
-                print(entry)
-                part = entry.parts[0]
-                cur.execute(
-                    f"""insert or replace into {filename} (
-                        id, conversationId, role, status, createdAt,
-                        author_id, author_displayName, author_avatarUrl, author_isOnline, author_role,
-                        parts_type, parts_text
-                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        entry.id,
-                        entry.conversationId,
-                        entry.role,
-                        entry.status,
-                        entry.createdAt,
-                        entry.author.id,
-                        entry.author.displayName,
-                        entry.author.avatarUrl,
-                        int(entry.author.isOnline),
-                        entry.author.role,
-                        part.type,
-                        part.text,
-                    ),
-                )
-            # print("Dumped values")
-            cur.execute(f"select * from {filename}")
-            print(f"server.py saveFile() {filename}: ", cur.fetchall())
-            conn.commit()
-        # print("Testing Input Validation")
         MessageList.model_validate(data)
-        # print("success!")
+        _save_messages_(filename, data.memo)
         return data
     except HTTPException:
         raise
@@ -232,13 +226,11 @@ async def saveFile(filename : str, data : MessageList) -> MessageList: #saves su
 @app.post("/new")
 async def run():
     _createtables_("history", HISTORY_PATH)
-    _createtables_("chatlog", CHATLOG_PATH)
     return {}
 
 @app.post("/reset")
 async def clearDBFiles():
     _cleartable_(HISTORY_PATH, "history")
-    _cleartable_(CHATLOG_PATH, "chatlog")
     return {}
 
 @app.post("/chat")
@@ -261,7 +253,6 @@ async def chat(data: MessageList) -> MessageList:
     except Exception as e:
         print(f"server.py chat(): {e}")
         raise HTTPException(status_code=500, detail="Chat generation failed")
-    
 
 
 if __name__ == "__main__": 
